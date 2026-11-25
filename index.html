@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>AI健康教練</title>
+  <meta name="description" content="住在手機裡的 AI 健康教練">
+  <meta name="theme-color" content="#22b573">
+  <link rel="manifest" href="manifest.webmanifest">
+  <!-- iPhone 加到主畫面 -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="AI健康教練">
+  <link rel="apple-touch-icon" href="icons/icon-180.png">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="css/app.css">
+  <link rel="stylesheet" href="css/pages.css">
+  <link rel="stylesheet" href="css/ai.css">
+</head>
+<body>
+  <header class="topbar">
+    <h1 id="page-title">AI健康教練</h1>
+    <a class="icon-btn" href="#settings" aria-label="設定">⚙️</a>
+  </header>
+
+  <main id="view" class="view" tabindex="-1"></main>
+
+  <nav class="tabbar" aria-label="主要分頁">
+    <a href="#coach"    data-route="coach"><span class="ti">🤖</span><span>教練</span></a>
+    <a href="#body"     data-route="body"><span class="ti">⚖️</span><span>身體</span></a>
+    <a href="#food"     data-route="food"><span class="ti">🍱</span><span>飲食</span></a>
+    <a href="#exercise" data-route="exercise"><span class="ti">🏃</span><span>運動</span></a>
+    <a href="#score"    data-route="score"><span class="ti">⭐</span><span>評分</span></a>
+  </nav>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
