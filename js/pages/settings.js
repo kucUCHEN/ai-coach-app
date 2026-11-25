@@ -150,7 +150,7 @@ function dangerCard() {
   return h('div', { class: 'card' },
     h('h2', {}, '🧹 重新開始'),
     h('button', { class: 'btn danger block', onclick: () => {
-      if (!confirm('真的要清除你的全部資料嗎？刪掉就找不回來了喔！')) return;
+      if (!confirm('真的要清除你的身體、飲食、運動和點數資料嗎？刪掉就找不回來了喔！\n（老師密碼和 AI key 不會刪除，要到「老師設定」清除）')) return;
       clearAll(); applyFont(1); toast('資料清除好了'); location.hash = '#body';
     } }, '清除我的資料'),
   );

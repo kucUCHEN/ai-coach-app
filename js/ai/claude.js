@@ -47,6 +47,11 @@ export async function call({ key, model, system, messages, schema, maxTokens = 6
   if (schema) body.output_config.format = { type: 'json_schema', schema };
 
   let { res, data } = await send(key, body, signal);
+  // 版本號不被接受時，改用 Anthropic 長期支援的版本 2023-06-01 再試一次
+  if (res.status === 400 && /version/i.test(data?.error?.message || '')) {
+    apiVersion = '2023-06-01';
+    ({ res, data } = await send(key, body, signal));
+  }
   // 如果這個模型不接受省錢設定（400），拿掉再試一次
   if (res.status === 400 && /thinking|effort/i.test(data?.error?.message || '')) {
     delete body.thinking; delete body.output_config.effort;
@@ -60,6 +65,7 @@ export async function call({ key, model, system, messages, schema, maxTokens = 6
   return text;
 }
 
+let apiVersion = '2026-10-21';
 async function send(key, body, signal) {
   let res;
   try {
@@ -69,7 +75,7 @@ async function send(key, body, signal) {
       headers: {
         'content-type': 'application/json',
         'x-api-key': key,
-        'anthropic-version': '2026-10-21',
+        'anthropic-version': apiVersion,
         // 允許從瀏覽器直接呼叫（CORS）。key 只存在這支手機。
         'anthropic-dangerous-direct-browser-access': 'true',
       },
