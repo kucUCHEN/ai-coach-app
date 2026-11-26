@@ -90,13 +90,13 @@ function drawLogin(root, pass) {
     h('button', { class: 'btn block mt', type: 'submit' }, '解鎖'),
   );
   const reset = h('div', { class: 'card' },
-    h('p', { class: 'small muted' }, `忘記密碼時可以重設回預設密碼 ${DEFAULT_PASS}，但為了安全，所有已儲存的 API key 會一併清除。`),
+    h('p', { class: 'small muted' }, '忘記密碼時可以重設回預設密碼，但為了安全，所有已儲存的 API key 會一併清除。'),
     h('button', { class: 'btn ghost block', type: 'button', onclick: () => {
       if (!confirm('重設密碼會同時清除所有 API key，確定嗎？')) return;
       ai.clearKeys();
       store.removeItem(PASS_KEY);
       unlocked = false;
-      toast(`已重設為 ${DEFAULT_PASS}，API key 已清除`);
+      toast('已重設為預設密碼，API key 已清除');
       draw(root);
     } }, '忘記密碼'),
   );
