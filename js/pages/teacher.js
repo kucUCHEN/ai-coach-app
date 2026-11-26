@@ -166,6 +166,47 @@ function drawSettings(root) {
     }
   }
 
+  // ---- 每日使用上限 ----
+  const limitBox = h('div', { class: 'card' });
+  function drawLimits() {
+    const L = ai.getLimits(), U = ai.getUsage();
+    const chatIn = h('input', { type: 'number', inputmode: 'numeric', min: '0', max: '9999', value: L.chat, 'aria-label': '每日對話上限' });
+    const photoIn = h('input', { type: 'number', inputmode: 'numeric', min: '0', max: '9999', value: L.photo, 'aria-label': '每日拍照上限' });
+    const costEl = h('p', { class: 'fine' });
+    const model = modelSel.value || ai.getConfig().model;
+    const updCost = () => {
+      const usd = ai.estimateCost(model, { chat: Number(chatIn.value) || 0, photo: Number(photoIn.value) || 0 });
+      costEl.textContent = `以目前模型估算：每天全部用完約 NT$${(usd * ai.USD_TO_TWD).toFixed(1)}，一個月最多約 NT$${Math.round(usd * ai.USD_TO_TWD * 30)}（估計值）。`;
+    };
+    chatIn.addEventListener('input', updCost); photoIn.addEventListener('input', updCost); updCost();
+    const bar = (label, used, max) => {
+      const pct = max ? Math.min(100, Math.round((used / max) * 100)) : 100;
+      return h('div', { class: 'usage' },
+        h('div', { class: 'row between small' }, h('span', {}, label), h('span', { class: used >= max ? 'warn-text bold' : 'muted' }, `${used} / ${max} 次`)),
+        h('div', { class: 'progress thin' }, h('div', { class: 'progress-bar' + (used >= max ? ' warn' : ''), style: { width: pct + '%' } })));
+    };
+    limitBox.replaceChildren(
+      h('h2', {}, '📊 每日使用上限'),
+      h('p', { class: 'muted small' }, '超過上限後，AI 會自動改用示範回答，其他功能照常使用。每天 0 點重新計算。'),
+      bar('💬 今日對話', U.chat, L.chat),
+      bar('📷 今日拍照估算', U.photo, L.photo),
+      h('p', { class: 'fine' }, `今日估計花費約 NT$${(U.usd * ai.USD_TO_TWD).toFixed(2)}`),
+      h('div', { class: 'grid2 mt' },
+        h('div', {}, h('label', {}, '每日對話上限（次）'), chatIn),
+        h('div', {}, h('label', {}, '每日拍照上限（次）'), photoIn)),
+      costEl,
+      h('div', { class: 'teacher-actions' },
+        h('button', { class: 'btn block', type: 'button', onclick: () => {
+          ai.setLimits({ chat: chatIn.value, photo: photoIn.value }); toast('已儲存使用上限'); drawLimits();
+        } }, '儲存上限'),
+        h('button', { class: 'btn ghost block', type: 'button', onclick: () => {
+          if (!confirm('把今天的使用次數歸零？')) return;
+          ai.resetUsage(); toast('今日次數已歸零'); drawLimits();
+        } }, '今日次數歸零')),
+      h('p', { class: 'fine' }, '⚠️ 這是 App 內的保護，換手機或清除瀏覽器資料就會失效；請同時在 AI 服務商後台設定每月花費上限。'),
+    );
+  }
+
   root.append(
     h('div', { class: 'card' },
       h('div', { class: 'row teacher-head' }, h('h2', {}, 'AI 服務'),
@@ -180,6 +221,7 @@ function drawSettings(root) {
         testBtn),
       testOut,
     ),
+    limitBox,
     h('div', { class: 'card' },
       h('div', { class: 'row between' }, h('div', {}, h('div', { class: 'bold' }, '清除所有 API key'), h('div', { class: 'muted small' }, '刪除這支手機上儲存的全部 key。')),
       h('button', { class: 'btn danger', type: 'button', onclick: () => {
@@ -198,9 +240,10 @@ function drawSettings(root) {
       ),
     ),
   );
-  modelSel.addEventListener('change', () => { testOut.textContent = ''; });
+  modelSel.addEventListener('change', () => { testOut.textContent = ''; drawLimits(); });
   drawProvider();
   updateStatus();
+  drawLimits();
 }
 
 export function leave() {

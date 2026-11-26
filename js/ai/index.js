@@ -42,6 +42,45 @@ export function isDemo() {
   return false;
 }
 
+// ---------- 每日使用上限（第二道防線；真正的花費上限請到 AI 公司後台設定） ----------
+const LIMIT_KEY = 'teacher.limits';
+const USAGE_KEY = 'teacher.usage';
+export const DEFAULT_LIMITS = { chat: 50, photo: 20 };
+// 每百萬 token 價格（美元，輸入／輸出），來源見 docs/AI比較表.md（2026-11-25 查證）
+const PRICE = {
+  'claude-haiku-5-5': [0.10, 0.50], 'claude-sonnet-5-5': [2, 10],
+  'gpt-6-luna': [0.10, 0.50], 'gpt-6.2-sol': [2, 10],
+  'gemini-3.5-flash-lite': [0.30, 2.50], 'gemini-3.8-flash': [0.75, 3.75],
+};
+const TOKENS = { chat: [1700, 200], photo: [1600, 300] }; // 每次大約用量（估計）
+export const USD_TO_TWD = 32;
+const today = () => { const d = new Date(); return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`; };
+
+export function getLimits() { return { ...DEFAULT_LIMITS, ...(store.getItem(LIMIT_KEY, null) || {}) }; }
+export function setLimits(l) {
+  const clean = (v, d) => { const n = Math.round(Number(v)); return n >= 0 && n <= 9999 ? n : d; };
+  store.setItem(LIMIT_KEY, { chat: clean(l.chat, DEFAULT_LIMITS.chat), photo: clean(l.photo, DEFAULT_LIMITS.photo) });
+}
+export function getUsage() {
+  const u = store.getItem(USAGE_KEY, null);
+  return u && u.date === today() ? u : { date: today(), chat: 0, photo: 0, usd: 0 };
+}
+export function resetUsage() { store.setItem(USAGE_KEY, { date: today(), chat: 0, photo: 0, usd: 0 }); }
+function overLimit(kind) { return getUsage()[kind] >= getLimits()[kind]; }
+function recordUse(kind, model) {
+  const u = getUsage();
+  const [pi, po] = PRICE[model] || [2, 10];
+  const [ti, to] = TOKENS[kind];
+  u[kind] += 1;
+  u.usd = Math.round((u.usd + (ti * pi + to * po) / 1e6) * 1e6) / 1e6;
+  store.setItem(USAGE_KEY, u);
+}
+export function estimateCost(model, limits = getLimits()) {
+  const [pi, po] = PRICE[model] || [2, 10];
+  const one = (k) => (TOKENS[k][0] * pi + TOKENS[k][1] * po) / 1e6;
+  return limits.chat * one('chat') + limits.photo * one('photo'); // 每天用滿時的美元
+}
+
 // 最近一次呼叫的狀態：{ demo:boolean, reason?:string }，給頁面顯示「示範模式」用
 let last = { demo: false };
 export const lastStatus = () => last;
@@ -57,6 +96,7 @@ const REASON = {
   refusal: 'AI 無法回答這個問題',
   empty: 'AI 沒有回覆',
   abort: '已取消',
+  limit: '今天的 AI 使用次數已達上限',
 };
 export function reasonText(kind) { return REASON[kind] || '發生錯誤'; }
 
@@ -143,6 +183,10 @@ export async function chat(messages, { signal } = {}) {
     last = { demo: true, reason: reasonText(demoReasonKind()) };
     return demoReply(lastText);
   }
+  if (overLimit('chat')) {
+    last = { demo: true, reason: reasonText('limit'), kind: 'limit' };
+    return demoReply(lastText) + `\n（示範回覆：${reasonText('limit')}）`;
+  }
   const c = getConfig();
   // 只送最近 12 句，並確保第一句是 user（Claude 要求）
   let msgs = messages.filter((m) => m.content).slice(-12).map((m) => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: m.content }));
@@ -153,6 +197,7 @@ export async function chat(messages, { signal } = {}) {
       key: c.keys[c.provider], model: c.model, system: systemPrompt(), messages: msgs, maxTokens: 600, signal,
     });
     last = { demo: false };
+    recordUse('chat', c.model);
     return text.trim();
   } catch (e) {
     const kind = friendlyKind(e, signal);
@@ -235,6 +280,10 @@ export async function estimateFood(dataUrl, { signal } = {}) {
     last = { demo: true, reason: reasonText(demoReasonKind()) };
     return { ...structuredClone(DEMO_FOOD), demo: true, reason: last.reason };
   }
+  if (overLimit('photo')) {
+    last = { demo: true, reason: reasonText('limit'), kind: 'limit' };
+    return { ...structuredClone(DEMO_FOOD), demo: true, reason: last.reason };
+  }
   const c = getConfig();
   const prompt = [
     '請辨識照片中的食物，估計每樣食物的名稱（繁體中文）、大約克數與熱量（大卡），並加總。',
@@ -253,6 +302,7 @@ export async function estimateFood(dataUrl, { signal } = {}) {
     const r = parseFoodJson(text);
     if (!r) throw Object.assign(new Error('parse'), { kind: 'empty' });
     last = { demo: false };
+    recordUse('photo', c.model);
     return r;
   } catch (e) {
     const kind = friendlyKind(e, signal);
