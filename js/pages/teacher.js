@@ -6,6 +6,7 @@ import * as ai from '../ai/index.js';
 import { icon } from '../icons.js';
 
 const PASS_KEY = 'teacher.pass';
+const DEFAULT_PASS = '0000'; // 還沒改過密碼時使用
 let unlocked = false; // 只記在記憶體；離開這一頁就上鎖
 let testCtrl = null;
 
@@ -46,13 +47,13 @@ function draw(root) {
     return;
   }
   const pass = store.getItem(PASS_KEY, null);
-  if (!pass?.hash) return drawSetup(root);
-  if (!unlocked) return drawLogin(root, pass);
+  if (!unlocked) return drawLogin(root, pass?.hash ? pass : null);
   drawSettings(root);
 }
 
-function drawSetup(root) {
-  const a = pwField('設定管理密碼（至少 4 碼）', { id: 'tp-new', inputmode: 'text' });
+function passwordCard(root) {
+  const usingDefault = !store.getItem(PASS_KEY, null)?.hash;
+  const a = pwField('新密碼（至少 4 碼）', { id: 'tp-new', inputmode: 'text' });
   const b = pwField('再輸入一次', { id: 'tp-new2' });
   const msg = h('p', { class: 'teacher-msg', role: 'alert' });
   const form = h('form', { class: 'card', onsubmit: async (e) => {
@@ -63,15 +64,15 @@ function drawSetup(root) {
     const salt = newSalt();
     store.setItem(PASS_KEY, { salt, hash: await hashPass(salt, p1) });
     unlocked = true;
-    toast('已設定管理密碼');
+    toast('已更改管理密碼');
     draw(root);
   } },
-    h('h2', {}, '設定管理密碼'),
-    h('p', { class: 'small muted' }, 'API key 會產生費用，請設定密碼保護這個頁面，避免他人修改。'),
+    h('h2', {}, '🔑 更改管理密碼'),
+    usingDefault ? h('p', { class: 'teacher-warn' }, `目前使用預設密碼 ${DEFAULT_PASS}。程式碼是公開的，別人也可能知道預設密碼，建議在比賽前改成自己的密碼。`) : h('p', { class: 'small muted' }, '更改後請記住新密碼。'),
     a.wrap, b.wrap, msg,
-    h('button', { class: 'btn block mt', type: 'submit' }, '設定密碼'),
+    h('button', { class: usingDefault ? 'btn block mt' : 'btn ghost block mt', type: 'submit' }, '更改密碼'),
   );
-  root.append(form);
+  return form;
 }
 
 function drawLogin(root, pass) {
@@ -79,27 +80,28 @@ function drawLogin(root, pass) {
   const msg = h('p', { class: 'teacher-msg', role: 'alert' });
   const form = h('form', { class: 'card', onsubmit: async (e) => {
     e.preventDefault();
-    const hv = await hashPass(pass.salt, a.input.value);
-    if (safeEqual(hv, pass.hash)) { unlocked = true; draw(root); }
+    const ok = pass ? safeEqual(await hashPass(pass.salt, a.input.value), pass.hash) : a.input.value === DEFAULT_PASS;
+    if (ok) { unlocked = true; draw(root); }
     else { msg.textContent = '密碼錯誤'; a.input.value = ''; a.input.focus(); }
   } },
     h('h2', {}, 'AI 連線設定'),
-    h('p', { class: 'small muted' }, '請輸入管理密碼。'),
+    h('p', { class: 'small muted' }, pass ? '請輸入管理密碼。' : `請輸入管理密碼（預設為 ${DEFAULT_PASS}）。`),
     a.wrap, msg,
     h('button', { class: 'btn block mt', type: 'submit' }, '解鎖'),
   );
   const reset = h('div', { class: 'card' },
-    h('p', { class: 'small muted' }, '忘記密碼時可以重設，但為了安全，所有已儲存的 API key 會一併清除。'),
+    h('p', { class: 'small muted' }, `忘記密碼時可以重設回預設密碼 ${DEFAULT_PASS}，但為了安全，所有已儲存的 API key 會一併清除。`),
     h('button', { class: 'btn ghost block', type: 'button', onclick: () => {
       if (!confirm('重設密碼會同時清除所有 API key，確定嗎？')) return;
       ai.clearKeys();
       store.removeItem(PASS_KEY);
       unlocked = false;
-      toast('已重設，API key 已清除');
+      toast(`已重設為 ${DEFAULT_PASS}，API key 已清除`);
       draw(root);
     } }, '忘記密碼'),
   );
-  root.append(form, reset);
+  root.append(form);
+  if (pass) root.append(reset);
   setTimeout(() => a.input.focus(), 50);
 }
 
@@ -241,6 +243,7 @@ function drawSettings(root) {
     ),
   );
   modelSel.addEventListener('change', () => { testOut.textContent = ''; drawLimits(); });
+  root.append(passwordCard(root));
   drawProvider();
   updateStatus();
   drawLimits();
