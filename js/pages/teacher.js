@@ -85,7 +85,7 @@ function drawLogin(root, pass) {
     else { msg.textContent = '密碼錯誤'; a.input.value = ''; a.input.focus(); }
   } },
     h('h2', {}, 'AI 連線設定'),
-    h('p', { class: 'small muted' }, pass ? '請輸入管理密碼。' : `請輸入管理密碼（預設為 ${DEFAULT_PASS}）。`),
+    h('p', { class: 'small muted' }, '請輸入管理密碼。'),
     a.wrap, msg,
     h('button', { class: 'btn block mt', type: 'submit' }, '解鎖'),
   );
