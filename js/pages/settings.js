@@ -21,9 +21,9 @@ export function render(r) {
 
 function draw() {
   root.replaceChildren(
-    section('提醒', remindCard(), callCard()),
-    section('顯示', fontCard()),
-    section('AI 與資料', aiCard(), demoCard(), dangerCard()),
+    section('⏰ 提醒', remindCard(), callCard()),
+    section('🔠 顯示', fontCard()),
+    section('🤖 AI 與資料', aiCard(), demoCard(), dangerCard()),
     aboutCard(),
   );
 }
@@ -61,7 +61,7 @@ function callCard() {
     h('div', {}, h('div', { class: 'bold' }, '教練來電'), h('div', { class: 'muted small' }, '到了運動時間，以來電畫面提醒。')),
     h('button', { class: 'btn ghost', onclick: () => {
       setTimeout(() => incomingCall({
-        title: 'AI 教練',
+        title: '教練小健',
         message: '運動時間到了。今天可以做 20 分鐘的跳繩或快走，結束後記得補充水分。',
         onAccept: () => toast('運動時間到了'),
       }), 600);

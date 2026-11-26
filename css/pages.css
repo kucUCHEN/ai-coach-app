@@ -191,3 +191,56 @@ a.btn { text-decoration: none; }
 
 /* label 當按鈕用（拍照）時，不套用表單 label 的樣式 */
 label.btn { margin: 0; font-size: inherit; color: #fff; }
+
+/* ===== 教練小健（角色貼圖） ===== */
+.mascot-wrap { flex: none; display: grid; place-items: center; }
+.mascot-wrap svg { width: 100%; height: 100%; display: block; overflow: visible; }
+.coach-face.mascot-wrap { width: 64px; height: 64px; background: var(--accent-soft); border-radius: 50%; padding: 4px; color: inherit; }
+.msg-avatar.mascot-wrap { width: 34px; height: 34px; background: var(--accent-soft); border-radius: 50%; padding: 2px; }
+.call-avatar.mascot-wrap { width: 132px; height: 132px; background: rgba(255,255,255,.12); padding: 12px; }
+
+/* 今日評分的表情 */
+.mood-head { display: flex; align-items: center; gap: 14px; }
+.mood-face { width: 96px; height: 96px; background: var(--surface); border-radius: 50%; padding: 6px; }
+.mood-head .hero-num { margin: 0 0 4px; }
+.mood-tag { display: inline-block; font-size: 14px; font-weight: 600; padding: 3px 10px; border-radius: 999px; background: var(--surface); }
+.mood-tag.great, .mood-tag.good { background: var(--accent-soft); color: var(--accent-strong); }
+.mood-tag.ok { background: var(--warn-soft); color: var(--warn); }
+.mood-tag.low { background: var(--danger-soft); color: var(--danger); }
+.coach-say { flex: none; font-weight: 700; color: var(--accent-strong); font-size: 15px; }
+.week-emoji { font-size: 18px; line-height: 1; min-height: 20px; }
+
+/* 徽章 */
+.badges { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+.badge { text-align: center; padding: 8px 2px; border-radius: var(--radius-sm); background: var(--surface); }
+.badge-e { font-size: 26px; line-height: 1.2; filter: grayscale(1); opacity: .4; }
+.badge-n { font-size: 12px; font-weight: 600; color: var(--muted); }
+.badge .fine { font-size: 10px; margin: 2px 0 0; }
+.badge.on { background: var(--accent-soft); }
+.badge.on .badge-e { filter: none; opacity: 1; }
+.badge.on .badge-n { color: var(--accent-strong); }
+
+/* ===== 身體：熱量流程、健康體重、營養 ===== */
+.flow-step { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.flow-step:last-of-type { border-bottom: 0; }
+.flow-e { font-size: 24px; width: 32px; text-align: center; }
+.flow-step .fine { margin: 0; }
+.flow-v b { font-size: 22px; }
+.flow-step:nth-of-type(3) .flow-v b { color: var(--accent-strong); }
+.range { position: relative; height: 12px; border-radius: 999px; background: var(--surface); margin: 34px 4px 44px; }
+.range-ok { position: absolute; top: 0; bottom: 0; background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent); border-radius: 999px; }
+.range-pin { position: absolute; top: -4px; width: 4px; height: 20px; border-radius: 2px; transform: translateX(-2px); background: var(--text); }
+.range-pin span { position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%); white-space: nowrap; font-size: 12px; font-weight: 600; }
+.range-pin.goal { background: var(--accent); }
+.range-pin.goal span { color: var(--accent-strong); bottom: auto; top: 24px; }
+.goal-plan { margin-top: 12px; padding: 12px; border-radius: var(--radius-sm); background: var(--surface); }
+.goal-plan .fine { margin-top: 4px; }
+.nut-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.nut { padding: 10px 12px; border-radius: var(--radius-sm); background: var(--surface); }
+.nut-e { font-size: 22px; line-height: 1.2; }
+.nut-v { font-size: 22px; }
+.nut .fine { margin: 2px 0 0; }
+
+/* 最近吃過 */
+.recent { margin-top: 12px; }
+.recent .chip-scroll { padding-top: 6px; padding-bottom: 2px; }

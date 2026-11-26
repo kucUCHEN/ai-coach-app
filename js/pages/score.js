@@ -3,6 +3,8 @@ import { h, toast } from '../ui.js';
 import { getProfile, getDay, getRewards, setRewards, getWeights, listDays, todayKey } from '../store.js';
 import { scoreDay, PASS_SCORE } from '../health.js';
 import { needProfile } from './food.js';
+import { mascot, moodOf } from '../mascot.js';
+import { guessGroups } from '../foods.js';
 
 let root = null;
 let alive = false;
@@ -21,26 +23,58 @@ export function leave() { alive = false; }
 function draw(p) {
   const day = getDay();
   const s = scoreDay(day, p);
-  root.replaceChildren(scoreCard(s, day, p), weekCard(p), monthCard(p), rewardCard(s));
+  root.replaceChildren(scoreCard(s, day, p), weekCard(p), badgeCard(p), rewardCard(s), monthCard(p));
 }
 
-// ---------- 今日評分 ----------
+// ---------- 今日評分（教練表情＋分數） ----------
 function scoreCard(s, day, profile) {
   let tip = '';
   try { tip = aiMod?.coachNudge?.({ profile, day, scores: s }) || ''; } catch (e) { console.warn(e); }
-  const part = (label, val, note) => h('div', { class: 'sub-score' },
-    h('div', { class: 'muted small' }, label),
+  const has = day.meals.length || day.workouts.length;
+  const m = moodOf(s.total, has);
+  const part = (emoji, label, val, note) => h('div', { class: 'sub-score' },
+    h('div', { class: 'muted small' }, emoji, ' ', label),
     h('div', { class: 'sub-num' }, val == null ? '—' : val),
     h('div', { class: 'fine' }, note));
   return h('div', { class: 'card' },
-    h('div', { class: 'row between' }, h('span', { class: 'muted small' }, '今日評分'),
-      h('span', { class: 'status ' + (s.passed ? 'normal' : 'pending') }, s.passed ? '已達標' : `${PASS_SCORE} 分達標`)),
-    h('div', { class: 'hero-num' }, h('b', {}, s.total), h('span', {}, ' / 100')),
-    h('div', { class: 'grid2' },
-      part('飲食', s.diet, s.diet == null ? '尚未記錄' : `${s.eaten} / ${s.target} 大卡`),
-      part('運動', s.exercise, `${day.workouts.length} 次・${Math.round(s.burned)} 大卡`),
+    h('div', { class: 'mood-head' },
+      mascot(m.mood, 'mood-face'),
+      h('div', { class: 'grow' },
+        h('div', { class: 'muted small' }, '今日評分'),
+        h('div', { class: 'hero-num' }, h('b', {}, s.total), h('span', {}, ' / 100')),
+        h('span', { class: 'mood-tag ' + m.mood }, `${m.emoji} ${m.label}`),
+      ),
     ),
-    tip ? h('div', { class: 'coach-line' }, h('span', { class: 'coach-dot' }, 'AI'), h('p', {}, String(tip))) : '',
+    h('div', { class: 'grid2 mt' },
+      part('🍱', '飲食', s.diet, s.diet == null ? '尚未記錄' : `${s.eaten} / ${s.target} 大卡`),
+      part('🏃', '運動', s.exercise, `${day.workouts.length} 次・${Math.round(s.burned)} 大卡`),
+    ),
+    tip ? h('div', { class: 'coach-line' }, h('span', { class: 'coach-say' }, '小健：'), h('p', {}, String(tip))) : '',
+    h('p', { class: 'fine' }, s.passed ? '🎉 今天已達標，可以領取點數。' : `💡 今日評分達 ${PASS_SCORE} 分就算達標。`),
+  );
+}
+
+// ---------- 本週徽章 ----------
+function badgeCard(p) {
+  const days = [];
+  for (let i = 6; i >= 0; i--) { const d = new Date(); d.setDate(d.getDate() - i); days.push(getDay(todayKey(d))); }
+  const logged = days.filter((d) => d.meals.length || d.workouts.length).length;
+  const passed = days.filter((d) => (d.meals.length || d.workouts.length) && scoreDay(d, p).passed).length;
+  const vegDays = days.filter((d) => d.meals.some((m) => (m.groups || guessGroups(m.name)).includes('蔬菜'))).length;
+  const moveDays = days.filter((d) => d.workouts.length).length;
+  const noSugar = days.filter((d) => d.meals.length && !d.meals.some((m) => /珍奶|奶茶|可樂|汽水|含糖|飲料/.test(m.name))).length;
+  const badges = [
+    { e: '🥇', name: '達標王', got: passed >= 4, hint: `達標 ${passed}/4 天` },
+    { e: '🥦', name: '蔬菜達人', got: vegDays >= 5, hint: `吃蔬菜 ${vegDays}/5 天` },
+    { e: '🔥', name: '運動不間斷', got: moveDays >= 4, hint: `運動 ${moveDays}/4 天` },
+    { e: '🧋', name: '少糖挑戰', got: noSugar >= 5, hint: `無含糖飲料 ${noSugar}/5 天` },
+    { e: '📝', name: '記錄好習慣', got: logged >= 5, hint: `記錄 ${logged}/5 天` },
+  ];
+  return h('div', { class: 'card' },
+    h('div', { class: 'row between' }, h('h2', {}, '本週徽章'), h('span', { class: 'muted small' }, `${badges.filter((b) => b.got).length} / ${badges.length}`)),
+    h('div', { class: 'badges' }, badges.map((b) =>
+      h('div', { class: 'badge' + (b.got ? ' on' : '') },
+        h('div', { class: 'badge-e' }, b.e), h('div', { class: 'badge-n' }, b.name), h('div', { class: 'fine' }, b.hint)))),
   );
 }
 
@@ -51,13 +85,15 @@ function weekCard(p) {
     const d = new Date(); d.setDate(d.getDate() - i);
     const day = getDay(todayKey(d));
     const has = day.meals.length || day.workouts.length;
-    days.push({ label: i === 0 ? '今天' : '日一二三四五六'[d.getDay()], score: has ? scoreDay(day, p).total : null, today: i === 0 });
+    const sc = has ? scoreDay(day, p).total : null;
+    days.push({ label: i === 0 ? '今天' : '日一二三四五六'[d.getDay()], score: sc, today: i === 0, emoji: sc == null ? '·' : moodOf(sc).emoji });
   }
   const passed = days.filter((d) => d.score != null && d.score >= PASS_SCORE).length;
   return h('div', { class: 'card' },
-    h('div', { class: 'row between' }, h('h2', {}, '本週'), h('span', { class: 'muted small' }, `達標 ${passed} 天`)),
+    h('div', { class: 'row between' }, h('h2', {}, '📅 本週'), h('span', { class: 'muted small' }, `達標 ${passed} 天`)),
     h('div', { class: 'week' }, days.map((d) =>
       h('div', { class: 'week-col' },
+        h('div', { class: 'week-emoji' }, d.emoji),
         h('div', { class: 'week-val' }, d.score ?? ''),
         h('div', { class: 'week-track' },
           h('div', { class: 'week-bar' + (d.score >= PASS_SCORE ? ' pass' : ''), style: { height: (d.score ?? 0) + '%' } })),
@@ -77,7 +113,7 @@ function monthCard(p) {
   const change = weights.length >= 2 ? Math.round((weights[weights.length - 1].kg - weights[0].kg) * 10) / 10 : null;
 
   return h('div', { class: 'card' },
-    h('h2', {}, `${Number(month.slice(5))} 月回顧`),
+    h('h2', {}, `📈 ${Number(month.slice(5))} 月成長回顧`),
     h('div', { class: 'row between' }, h('span', { class: 'small bold' }, '體重變化'),
       change == null ? '' : h('span', { class: 'small' }, change === 0 ? '持平' : `${change > 0 ? '+' : ''}${change} 公斤`)),
     weights.length >= 2 ? weightChart(weights) : h('p', { class: 'muted small' }, '本月記錄兩次以上體重後，會顯示變化圖。'),
@@ -105,7 +141,7 @@ function rewardCard(s) {
         const r = getRewards(); r.awarded ||= {};
         if (r.awarded[today]) return;
         r.awarded[today] = true; r.points += 1; setRewards(r);
-        toast('已領取 1 點'); draw(getProfile());
+        toast('已領取 1 點 ⭐'); draw(getProfile());
       } }, '領取今日點數')
     : h('p', { class: 'muted small' }, `每日評分達 ${PASS_SCORE} 分可領 1 點。`);
 
@@ -121,7 +157,7 @@ function rewardCard(s) {
     } }, '儲存'));
 
   return h('div', { class: 'card' },
-    h('div', { class: 'row between' }, h('h2', {}, '達標點數'), h('span', { class: 'bold' }, `${rw.points} 點`)),
+    h('div', { class: 'row between' }, h('h2', {}, '🎁 集點換獎勵'), h('span', { class: 'bold' }, `${rw.points} 點`)),
     h('div', { class: 'row between small' }, h('span', {}, `目標：${rw.reward.name}`), h('span', { class: 'muted' }, left ? `還差 ${left} 點` : '已達成')),
     h('div', { class: 'progress thin' }, h('div', { class: 'progress-bar', style: { width: pct + '%' } })),
     claim,
@@ -130,7 +166,7 @@ function rewardCard(s) {
       if (r.points < r.reward.cost) return;
       if (!confirm(`使用 ${r.reward.cost} 點兌換「${r.reward.name}」？`)) return;
       r.points -= r.reward.cost; setRewards(r);
-      toast(`已兌換：${r.reward.name}`); draw(getProfile());
+      toast(`🎉 已兌換：${r.reward.name}`); draw(getProfile());
     } }, `兌換 ${rw.reward.name}`) : '',
     h('button', { class: 'link-btn', onclick: () => { editor.hidden = !editor.hidden; } }, '自訂獎勵'),
     editor,

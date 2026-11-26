@@ -1,4 +1,5 @@
 import { icon } from './icons.js';
+import { mascot } from './mascot.js';
 // 共用小工具
 // h('div', {class:'card', onclick: fn}, '文字', child, [children])
 export function h(tag, attrs = {}, ...children) {
@@ -28,10 +29,10 @@ export function toast(msg, ms = 2200) {
 export function go(route) { location.hash = '#' + route; }
 
 // 模擬來電：網頁 App 不能真的打電話，所以做一個「教練來電」畫面
-export function incomingCall({ title = 'AI 教練', message = '運動時間到了。', onAccept } = {}) {
+export function incomingCall({ title = '教練小健', message = '運動時間到了。', onAccept } = {}) {
   const close = () => overlay.remove();
   const overlay = h('div', { class: 'call-overlay', role: 'dialog', 'aria-label': title },
-    h('div', { class: 'call-avatar' }, 'AI'),
+    mascot('cheer', 'call-avatar'),
     h('div', { class: 'call-title' }, title),
     h('div', { class: 'call-sub' }, '來電提醒'),
     h('div', { class: 'call-actions' },

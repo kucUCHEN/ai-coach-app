@@ -42,24 +42,104 @@ function showInfo(p) {
       ),
       lv ? h('p', { class: 'small muted note' }, bmiTip(lv, p.age)) : '',
     ),
+    energyCard(p, bmr, tdee, target),
+    goalCard(p, lv, tdee, target),
+    nutrientCard(p, target),
     h('div', { class: 'card' },
-      h('h2', {}, '每日建議熱量'),
-      h('div', { class: 'hero-num' }, h('b', {}, target ?? '—'), h('span', {}, ' 大卡')),
-      h('p', { class: 'muted small' },
-        `基礎代謝約 ${bmr} 大卡 × 活動量「${(ACTIVITY[p.activity] || ACTIVITY.mid).label}」≈ 每日消耗 ${tdee} 大卡。`,
-        p.goal === 'lose' ? ' 減脂目標已減少約 10%；建議每週慢慢調整，不要過度節食。' : '',
-        p.goal === 'gain' ? ' 增肌目標已增加約 10%；搭配蛋白質與肌力訓練效果較好。' : '',
-      ),
-      p.age < 18 ? h('p', { class: 'muted small' }, '未滿 18 歲仍在成長，不建議以節食控制體重。') : '',
-      h('p', { class: 'fine' }, '以上為公式估算，僅供參考，不能取代醫師或營養師的建議。'),
-    ),
-    h('div', { class: 'card' },
-      h('h2', {}, '記錄今天體重'),
+      h('h2', {}, '⚖️ 記錄今天體重'),
       last ? h('p', { class: 'muted small' }, `上次：${last.date.slice(5).replace('-', '/')}　${last.kg} 公斤`) : '',
       h('div', { class: 'row' }, weightInput, h('span', { class: 'unit' }, '公斤'),
         h('button', { class: 'btn', onclick: () => saveWeight(p, weightInput.value) }, '儲存')),
       h('a', { class: 'link-btn', href: '#coach' }, '沒有體重計？也可以直接告訴 AI 教練', icon('chevron')),
     ),
+  );
+}
+
+// ---------- 熱量：BMR → TDEE → 每日建議 ----------
+function energyCard(p, bmr, tdee, target) {
+  const act = ACTIVITY[p.activity] || ACTIVITY.mid;
+  const adj = (GOALS[p.goal] || GOALS.keep).adjust;
+  const step = (emoji, label, val, note) => h('div', { class: 'flow-step' },
+    h('div', { class: 'flow-e' }, emoji),
+    h('div', { class: 'grow' }, h('div', { class: 'small bold' }, label), h('div', { class: 'fine' }, note)),
+    h('div', { class: 'flow-v' }, h('b', {}, val ?? '—'), h('span', { class: 'muted small' }, ' 大卡')));
+  return h('div', { class: 'card' },
+    h('h2', {}, '🔥 每天需要多少熱量？'),
+    step('🛌', '基礎代謝 BMR', bmr, '躺著不動，身體一天也會消耗的熱量'),
+    step('🚶', '每日總消耗 TDEE', tdee, `BMR × 活動量「${act.label}」(${act.factor})`),
+    step('🎯', '每日建議攝取', target, adj < 0 ? '減脂：TDEE 減少約 10%' : adj > 0 ? '增肌：TDEE 增加約 10%' : '維持：與 TDEE 相同'),
+    p.age < 18 ? h('p', { class: 'muted small' }, '🌱 未滿 18 歲仍在成長，不建議以節食控制體重。') : '',
+    h('p', { class: 'fine' }, '以上為 Mifflin-St Jeor 公式估算，僅供參考，不能取代醫師或營養師的建議。'),
+  );
+}
+
+// ---------- 健康體重範圍與目標體重 ----------
+function healthyRange(p, lv) {
+  const m2 = (p.heightCm / 100) ** 2;
+  const lo = lv?.cut?.under ?? 18.5, hi = lv?.cut?.over ?? 24;
+  return [Math.round(lo * m2 * 10) / 10, Math.round(hi * m2 * 10) / 10];
+}
+function goalCard(p, lv, tdee, target) {
+  const [lo, hi] = healthyRange(p, lv);
+  const minor = p.age < 18;
+  const goal = Number(p.goalWeightKg) || null;
+  const input = h('input', { type: 'number', inputmode: 'decimal', step: '0.1', min: '10', max: '250', value: goal ?? '', placeholder: '目標體重', 'aria-label': '目標體重（公斤）' });
+  let plan = '';
+  if (goal && !minor) {
+    const diff = Math.round((goal - p.weightKg) * 10) / 10;
+    const dailyGap = Math.abs((target ?? tdee) - tdee);       // 每天多吃或少吃的熱量
+    const perWeek = Math.min(0.5, (dailyGap * 7) / 7700);     // 每公斤脂肪約 7700 大卡，每週上限 0.5 公斤
+    const weeks = Math.abs(diff) < 0.1 ? 0 : perWeek > 0 ? Math.ceil(Math.abs(diff) / perWeek) : null;
+    const done = new Date(); if (weeks) done.setDate(done.getDate() + weeks * 7);
+    plan = h('div', { class: 'goal-plan' },
+      h('div', { class: 'row between' }, h('span', {}, diff === 0 ? '🎉 已達到目標' : `${diff < 0 ? '還要減' : '還要增加'} ${Math.abs(diff)} 公斤`),
+        weeks ? h('span', { class: 'muted small' }, `約 ${weeks} 週`) : ''),
+      weeks ? h('div', { class: 'fine' }, `照目前的每日建議攝取，每週約 ${Math.round(perWeek * 10) / 10} 公斤，預計 ${done.getFullYear()}/${done.getMonth() + 1} 達成。`) : '',
+      weeks === null ? h('div', { class: 'fine' }, '目前目標是「維持健康」，若要改變體重，請到「編輯」選擇減脂或增肌。') : '',
+      goal < lo || goal > hi ? h('div', { class: 'fine warn-text' }, '⚠️ 這個目標不在健康體重範圍內，建議調整。') : '',
+    );
+  }
+  // 範圍條：把目前體重與目標標在健康範圍上
+  const min = Math.min(lo * 0.85, p.weightKg, goal ?? Infinity), max = Math.max(hi * 1.15, p.weightKg, goal ?? 0);
+  const pos = (v) => `${((v - min) / (max - min)) * 100}%`;
+  return h('div', { class: 'card' },
+    h('h2', {}, '🎯 健康體重與目標'),
+    h('div', { class: 'range' },
+      h('div', { class: 'range-ok', style: { left: pos(lo), width: `calc(${pos(hi)} - ${pos(lo)})` } }),
+      h('div', { class: 'range-pin now', style: { left: pos(p.weightKg) } }, h('span', {}, `現在 ${p.weightKg}`)),
+      goal ? h('div', { class: 'range-pin goal', style: { left: pos(goal) } }, h('span', {}, `目標 ${goal}`)) : '',
+    ),
+    h('p', { class: 'small' }, `健康體重範圍：${lo}–${hi} 公斤`, h('span', { class: 'muted' }, minor ? '（兒童及青少年標準）' : '（BMI 18.5–24）')),
+    minor ? h('p', { class: 'muted small' }, '🌱 成長期身高還會增加，建議以「維持體重、慢慢長高」為目標，不設減重時程。')
+      : h('div', { class: 'row' }, input, h('span', { class: 'unit' }, '公斤'),
+        h('button', { class: 'btn ghost', onclick: () => {
+          const v = Math.round(Number(input.value) * 10) / 10;
+          if (!(v >= 10 && v <= 250)) return toast('請輸入正確的目標體重');
+          setProfile({ ...getProfile(), goalWeightKg: v }); toast('🎯 已設定目標體重'); showInfo(getProfile());
+        } }, '設定')),
+    plan,
+  );
+}
+
+// ---------- 每日營養參考 ----------
+function nutrientCard(p, target) {
+  const proteinPerKg = p.goal === 'gain' ? 1.6 : p.age < 18 ? 1.0 : 1.2;
+  const protein = Math.round(p.weightKg * proteinPerKg);
+  const water = Math.round((p.weightKg * 30) / 50) * 50;
+  const fat = Math.round((target * 0.3) / 9);
+  const carb = Math.round((target - protein * 4 - fat * 9) / 4);
+  const cell = (e, label, val, unit, note) => h('div', { class: 'nut' },
+    h('div', { class: 'nut-e' }, e), h('div', { class: 'muted small' }, label),
+    h('div', {}, h('b', { class: 'nut-v' }, val), h('span', { class: 'muted small' }, ' ' + unit)), h('div', { class: 'fine' }, note));
+  return h('div', { class: 'card' },
+    h('h2', {}, '🥗 每日營養參考'),
+    h('div', { class: 'nut-grid' },
+      cell('💧', '喝水', water, '毫升', `體重 × 30 毫升，約 ${Math.round(water / 250)} 杯`),
+      cell('🍗', '蛋白質', protein, '克', `每公斤 ${proteinPerKg} 克`),
+      cell('🍚', '醣類', carb, '克', '其餘熱量'),
+      cell('🥑', '脂肪', fat, '克', '約 30% 熱量'),
+    ),
+    h('p', { class: 'fine' }, '一般健康成人的參考值；有慢性病、懷孕或特殊需求請諮詢專業人員。'),
   );
 }
 
@@ -113,6 +193,7 @@ function showForm(old) {
   const form = h('form', { class: 'card', onsubmit: (e) => {
     e.preventDefault();
     const p = {
+      ...(old || {}),
       name: name.value.trim(),
       age: Number(age.value), sex: state.sex,
       heightCm: Math.round(Number(height.value) * 10) / 10,

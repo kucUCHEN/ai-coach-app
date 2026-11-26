@@ -1,7 +1,7 @@
 // 「飲食」：今日熱量與均衡度、新增餐點（拍照／手動）、今日餐點、熱量換算。
 import { h, toast } from '../ui.js';
 import { icon } from '../icons.js';
-import { getProfile, getDay, updateDay } from '../store.js';
+import { getProfile, getDay, updateDay, listDays } from '../store.js';
 import { dailyTarget, sumMealKcal, repsToBurn } from '../health.js';
 import { FOODS, GROUPS, foodsIn, guessGroups } from '../foods.js';
 import { EXERCISES } from '../sensor/exercises.js';
@@ -64,11 +64,11 @@ function summaryCard(p, day) {
     h('p', { class: 'muted small' }, over ? `已超過建議量 ${eaten - target} 大卡。`
       : eaten === 0 ? '尚未記錄。' : `還可攝取約 ${Math.max(0, target - eaten)} 大卡。`),
     h('div', { class: 'divider' }),
-    h('div', { class: 'row between' }, h('span', { class: 'small bold' }, '飲食均衡'),
+    h('div', { class: 'row between' }, h('span', { class: 'small bold' }, '🍽️ 我的餐盤'),
       h('span', { class: 'muted small' }, `${main.length - missing.length} / ${main.length} 類`)),
     h('div', { class: 'group-row' }, main.map((g) =>
-      h('span', { class: 'group-pill' + (got.has(g.key) ? ' on' : '') }, got.has(g.key) ? icon('check') : '', g.key))),
-    day.meals.length && missing.length ? h('p', { class: 'muted small' }, `今天還缺少：${missing.map((g) => g.key).join('、')}`) : '',
+      h('span', { class: 'group-pill' + (got.has(g.key) ? ' on' : '') }, g.emoji, ' ', g.key))),
+    day.meals.length ? h('p', { class: 'muted small' }, missing.length ? `今天還缺少：${missing.map((g) => g.key).join('、')}` : '🎉 五大類都吃到了！') : '',
   );
 }
 
@@ -97,13 +97,14 @@ function addCard() {
     } });
   fillManual(manual);
   return h('div', { class: 'card' },
-    h('div', { class: 'row between' }, h('h2', {}, '新增餐點'), safeDemo() ? h('span', { class: 'demo-badge' }, '示範模式') : ''),
+    h('div', { class: 'row between' }, h('h2', {}, '🍱 新增餐點'), safeDemo() ? h('span', { class: 'demo-badge' }, '示範模式') : ''),
     input,
     h('div', { class: 'grid2' },
       h('label', { for: 'food-photo', class: 'btn action-btn' }, icon('camera'), '拍照估算'),
       h('button', { class: 'btn ghost action-btn', onclick: () => { manualOpen = manual.hidden; manual.hidden = !manual.hidden; result.replaceChildren(); } }, icon('plus'), '手動選擇'),
     ),
-    h('p', { class: 'fine' }, 'AI 會估算份量與熱量，結果可以修改。照片不會儲存。'),
+    recentRow(),
+    h('p', { class: 'fine' }, 'AI 會估算份量與熱量，結果可以修改。照片不會儲存。也可以直接跟教練說「午餐吃了滷肉飯」。'),
     result,
     manual,
   );
@@ -168,6 +169,19 @@ function editResult(res, dataUrl) {
   );
 }
 
+// ---------- 最近吃過：一鍵再記一次 ----------
+function recentRow() {
+  const seen = new Map();
+  for (const k of listDays().sort().reverse().slice(0, 14)) {
+    for (const m of [...getDay(k).meals].reverse()) if (!seen.has(m.name) && seen.size < 8) seen.set(m.name, m);
+  }
+  if (!seen.size) return '';
+  return h('div', { class: 'recent' }, h('div', { class: 'muted small' }, '⚡ 最近吃過，點一下再記一次'),
+    h('div', { class: 'chip-scroll' }, [...seen.values()].map((m) =>
+      h('button', { class: 'chip', onclick: () => addMeal({ name: m.name, kcal: m.kcal, items: m.items, groups: m.groups }) },
+        `${m.name.length > 10 ? m.name.slice(0, 10) + '…' : m.name}・${m.kcal}`))));
+}
+
 // ---------- 手動選擇 ----------
 function fillManual(box) {
   let group = manualGroup || GROUPS[0].key;
@@ -176,10 +190,10 @@ function fillManual(box) {
   const picker = h('div');
 
   const drawTabs = () => tabs.replaceChildren(...GROUPS.map((g) =>
-    h('button', { class: 'chip' + (g.key === group ? ' on' : ''), onclick: () => { group = manualGroup = g.key; drawTabs(); drawList(); picker.replaceChildren(); } }, g.key)));
+    h('button', { class: 'chip' + (g.key === group ? ' on' : ''), onclick: () => { group = manualGroup = g.key; drawTabs(); drawList(); picker.replaceChildren(); } }, `${g.emoji} ${g.key}`)));
   const drawList = () => list.replaceChildren(...foodsIn(group).map((f) =>
     h('button', { class: 'food-row', onclick: () => pick(f) },
-      h('span', { class: 'grow' }, f.name, h('span', { class: 'muted small' }, `　${f.unit}`)),
+      h('span', { class: 'grow' }, `${f.emoji} ${f.name}`, h('span', { class: 'muted small' }, `　${f.unit}`)),
       h('span', { class: 'muted small' }, `${f.kcal} 大卡`))));
 
   const pick = (f) => {
@@ -209,7 +223,7 @@ function fillManual(box) {
 // ---------- 今日餐點 ----------
 function mealList(day) {
   return h('div', { class: 'card' },
-    h('h2', {}, '今日餐點'),
+    h('h2', {}, '📝 今日餐點'),
     day.meals.length ? h('ul', { class: 'list' }, day.meals.map((m) =>
       h('li', { class: 'list-item' },
         h('span', { class: 'muted small time' }, m.time || ''),
@@ -238,7 +252,7 @@ function swapCard() {
   foodSel.addEventListener('change', upd); exSel.addEventListener('change', upd);
   foodSel.value = '全糖珍奶';
   upd();
-  return h('div', { class: 'card' }, h('h2', {}, '熱量換算'),
+  return h('div', { class: 'card' }, h('h2', {}, '⚖️ 吃的 ⇄ 動的'),
     h('div', { class: 'grid2' }, foodSel, exSel), out,
     h('p', { class: 'fine' }, '估算值，實際消耗會因體重與強度不同。'));
 }

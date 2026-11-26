@@ -36,7 +36,7 @@ export function render(r) {
   root.replaceChildren(
     ...(profileHint ? [profileHint] : []),
     els.status,
-    h('div', { class: 'card' }, h('h2', {}, '選擇運動'), els.chips, els.where),
+    h('div', { class: 'card' }, h('h2', {}, '🏃 選擇運動'), els.chips, els.where),
     h('div', { class: 'card' }, els.ring, els.controls),
     manualCard(),
     els.today,
@@ -83,7 +83,7 @@ function drawChips() {
   els.chips.replaceChildren(...EXERCISES.map((e) =>
     h('button', { class: 'chip' + (e.id === state.exId ? ' on' : ''), disabled: state.running,
       onclick: () => { state.exId = e.id; state.reps = 0; state.quality = 0; state.stars = 0; drawChips(); drawRing(); } },
-      e.name)));
+      `${e.emoji} ${e.name}`)));
   const ex = byId(state.exId);
   els.where.replaceChildren(`感測器配戴位置：${ex.where}　目標 ${ex.goal} 次`);
 }
@@ -155,9 +155,9 @@ function addWorkout(w) {
 }
 
 function cheer(reps, ex) {
-  if (reps >= ex.goal) return `${ex.name} ${reps} 次，已達成目標`;
-  if (reps >= ex.goal / 2) return `${ex.name} ${reps} 次，已完成目標的一半以上`;
-  return `已記錄 ${ex.name} ${reps} 次`;
+  if (reps >= ex.goal) return `🎉 ${ex.name} ${reps} 次，達成目標！`;
+  if (reps >= ex.goal / 2) return `💪 ${ex.name} ${reps} 次，超過一半了`;
+  return `👍 已記錄 ${ex.name} ${reps} 次`;
 }
 
 // ---------- 手動輸入 ----------
@@ -185,12 +185,12 @@ function drawToday() {
   const day = getDay();
   const total = day.workouts.reduce((s, w) => s + (Number(w.kcal) || 0), 0);
   els.today.replaceChildren(
-    h('h2', {}, '今日運動'),
+    h('h2', {}, '🏅 今日運動'),
     day.workouts.length ? h('ul', { class: 'list' }, day.workouts.map((w) => {
       const ex = byId(w.exerciseId) || EXERCISES[0];
       return h('li', { class: 'list-item' },
         h('span', { class: 'muted small' }, w.time || ''),
-        h('span', { class: 'grow' }, `${ex.name} ${w.reps} 次`),
+        h('span', { class: 'grow' }, `${ex.emoji} ${ex.name} ${w.reps} 次`),
         h('span', { class: 'small muted' }, `${Math.round(w.kcal)} 大卡`));
     })) : h('p', { class: 'muted small' }, '尚未記錄。'),
     day.workouts.length ? h('p', { class: 'small' }, `共消耗約 ${Math.round(total)} 大卡`) : '',

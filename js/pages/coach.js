@@ -3,8 +3,11 @@ import { h, toast, go, speak, incomingCall } from '../ui.js';
 import * as store from '../store.js';
 import * as ai from '../ai/index.js';
 import { icon } from '../icons.js';
+import { mascot, moodOf } from '../mascot.js';
+import { scoreDay } from '../health.js';
+import { parseLog, applyLog } from '../quicklog.js';
 
-const QUICK = ['晚餐怎麼吃比較好？', '幫我安排今天的運動', '我今天的表現如何？'];
+const QUICK = ['🍱 我午餐吃了雞腿便當', '🪢 跳繩 200 下', '🍽️ 晚餐怎麼吃比較好？', '📊 我今天的表現如何？'];
 
 let controller = null;
 let recog = null;
@@ -38,12 +41,18 @@ function bubble(m) {
   const textEl = h('div', { class: 'bubble-text' });
   textEl.textContent = m.content; // 一律用 textContent，不用 innerHTML
   return h('div', { class: 'msg ' + (isCoach ? 'from-coach' : 'from-me') },
-    isCoach ? h('div', { class: 'msg-avatar', 'aria-hidden': 'true' }, 'AI') : null,
+    isCoach ? mascot('good', 'msg-avatar') : null,
     h('div', { class: 'bubble' },
       textEl,
       h('div', { class: 'msg-meta' }, h('span', {}, timeStr(m.time)), isCoach ? speakerBtn(m.content) : null),
     ),
   );
+}
+
+function todayMood(profile) {
+  const day = store.getDay();
+  if (!profile || !(day.meals.length || day.workouts.length)) return 'cheer';
+  return moodOf(scoreDay(day, profile).total).mood;
 }
 
 export function render(root) {
@@ -54,7 +63,7 @@ export function render(root) {
 
   const badge = h('span', { class: 'demo-badge', hidden: !ai.isDemo() }, '示範模式');
   const list = h('div', { class: 'chat-list', 'aria-live': 'polite' });
-  const input = h('input', { type: 'text', class: 'chat-input', placeholder: '輸入訊息', enterkeyhint: 'send', 'aria-label': '輸入訊息', maxlength: '300' });
+  const input = h('input', { type: 'text', class: 'chat-input', placeholder: '例如：午餐吃了滷肉飯', enterkeyhint: 'send', 'aria-label': '輸入訊息', maxlength: '300' });
   const sendBtn = h('button', { class: 'chat-send', type: 'submit', 'aria-label': '送出' }, icon('send'));
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   const micBtn = h('button', { class: 'chat-mic', type: 'button', 'aria-label': '語音輸入', onclick: toggleMic }, icon('mic'));
@@ -103,9 +112,13 @@ export function render(root) {
       if (!p.heightCm || !p.weightKg) localReply += p.heightCm ? ' 也請告訴我你的體重。' : ' 也請告訴我你的身高。';
     }
 
+    // 一句話記錄飲食或運動
+    const logged = applyLog(parseLog(text));
+    if (logged) localReply = (localReply ? localReply + '\n' : '') + logged;
+
     drawChat();
     const typing = h('div', { class: 'msg from-coach typing' },
-      h('div', { class: 'msg-avatar', 'aria-hidden': 'true' }, 'AI'),
+      mascot('ok', 'msg-avatar'),
       h('div', { class: 'bubble' }, h('span', { class: 'dots', 'aria-label': '正在回覆' }, '・・・')));
     list.append(typing);
     { const v = root.closest('.view') || root; v.scrollTop = v.scrollHeight; }
@@ -114,7 +127,7 @@ export function render(root) {
     controller = new AbortController();
     let reply = '';
     try {
-      if (localReply && ai.isDemo()) reply = localReply + ' 我會依照這些資料給你建議。';
+      if (localReply && ai.isDemo()) reply = localReply + (logged ? '\n' + ai.coachNudge({ profile: store.getProfile(), day: store.getDay() }) : ' 我會依照這些資料給你建議。');
       else {
         reply = await ai.chat(chat.map((m) => ({ role: m.role, content: m.content })), { signal: controller.signal });
         if (localReply) reply = localReply + '\n' + reply;
@@ -173,9 +186,9 @@ export function render(root) {
       
       h('section', { class: 'coach-hero card' },
         h('div', { class: 'coach-hero-top' },
-          h('div', { class: 'coach-face', 'aria-hidden': 'true' }, 'AI'),
-          h('div', { class: 'coach-name' }, h('strong', {}, 'AI 健康教練'), ' ', badge,
-            h('div', { class: 'coach-ai-note' }, '由 AI 產生回覆，不是真人')),
+          mascot(todayMood(profile), 'coach-face'),
+          h('div', { class: 'coach-name' }, h('strong', {}, '教練小健'), ' ', badge,
+            h('div', { class: 'coach-ai-note' }, 'AI 健康教練（非真人）')),
           speakerBtn(greet),
         ),
         greetText,
