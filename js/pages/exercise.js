@@ -1,5 +1,6 @@
 // 「運動」：連接感測器、選運動、看次數圓環，結束後記錄到今天。
 import { h, toast } from '../ui.js';
+import { icon } from '../icons.js';
 import { getProfile, updateDay, getDay } from '../store.js';
 import { getSensor, EXERCISES, byId } from '../sensor/index.js';
 
@@ -23,7 +24,7 @@ export function render(r) {
   }));
 
   const profileHint = getProfile() ? null
-    : h('div', { class: 'card notice' }, '先到「身體」頁填好資料，教練才能幫你算運動分數喔！ ', h('a', { href: '#body' }, '去填資料'));
+    : h('div', { class: 'card notice' }, '建立基本資料後，運動會計入每日評分。 ', h('a', { href: '#body' }, '前往建立'));
 
   els.status = h('div', { class: 'card sensor-bar' });
   els.chips = h('div', { class: 'chip-scroll' });
@@ -35,7 +36,7 @@ export function render(r) {
   root.replaceChildren(
     ...(profileHint ? [profileHint] : []),
     els.status,
-    h('div', { class: 'card' }, h('h2', {}, '今天要做什麼？'), els.chips, els.where),
+    h('div', { class: 'card' }, h('h2', {}, '選擇運動'), els.chips, els.where),
     h('div', { class: 'card' }, els.ring, els.controls),
     manualCard(),
     els.today,
@@ -61,18 +62,18 @@ function drawStatus() {
   els.status.replaceChildren(...[
     h('div', { class: 'row between' },
       h('div', { class: 'row' }, h('span', { class: 'dot ' + (on ? 'on' : 'off') }),
-        h('span', { class: 'bold' }, on ? `${kindText}已連線` : '感測器還沒連線')),
-      on && state.battery != null ? h('span', { class: 'battery' }, `🔋 ${state.battery}%`) : null),
+        h('span', { class: 'bold' }, on ? `${kindText}・已連線` : '感測器未連線')),
+      on && state.battery != null ? h('span', { class: 'battery muted small' }, `電量 ${state.battery}%`) : null),
     on ? null : h('button', { class: 'btn block mt', disabled: state.connecting, onclick: connect },
-      state.connecting ? '連線中…' : '📡 連接感測器'),
-    on ? null : h('p', { class: 'muted tiny' }, sensor.kind === 'mock' ? '目前是「模擬感測器」，會假裝有人在運動，方便展示。' : ''),
+      state.connecting ? '連線中…' : '連接感測器'),
+    on ? null : h('p', { class: 'muted tiny' }, sensor.kind === 'mock' ? '目前使用模擬資料，方便在沒有感測器時展示。' : ''),
   ].filter(Boolean));
 }
 
 async function connect() {
   state.connecting = true; drawStatus();
-  try { await sensor.connect(); toast('感測器連上了！'); }
-  catch (e) { console.warn(e); toast('連不上，再試一次'); }
+  try { await sensor.connect(); toast('感測器已連線'); }
+  catch (e) { console.warn(e); toast('連線失敗，請再試一次'); }
   state.connecting = false;
   drawStatus(); drawControls();
 }
@@ -82,9 +83,9 @@ function drawChips() {
   els.chips.replaceChildren(...EXERCISES.map((e) =>
     h('button', { class: 'chip' + (e.id === state.exId ? ' on' : ''), disabled: state.running,
       onclick: () => { state.exId = e.id; state.reps = 0; state.quality = 0; state.stars = 0; drawChips(); drawRing(); } },
-      `${e.emoji} ${e.name}`)));
+      e.name)));
   const ex = byId(state.exId);
-  els.where.replaceChildren('📍 感測器', h('b', {}, ex.where), `・目標 ${ex.goal} 下`);
+  els.where.replaceChildren(`感測器配戴位置：${ex.where}　目標 ${ex.goal} 次`);
 }
 
 // ---------- 大圓環 ----------
@@ -107,10 +108,10 @@ function drawRing() {
     h('div', { class: 'ring-box' }, svg,
       h('div', { class: 'ring-center' },
         h('div', { class: 'ring-num', 'aria-live': 'polite' }, state.reps),
-        h('div', { class: 'muted small' }, `/ ${ex.goal} 下`))),
+        h('div', { class: 'muted small' }, `/ ${ex.goal} 次`))),
     h('div', { class: 'ring-side' },
-      h('div', { class: 'muted small' }, '完成度'), h('div', { class: 'side-num' }, `${Math.round(pct * 100)}%`),
-      h('div', { class: 'muted small' }, '動作完整'), h('div', { class: 'side-num' }, state.reps ? `${state.quality}%` : '—'),
+      h('div', { class: 'muted small' }, '目標進度'), h('div', { class: 'side-num' }, `${Math.round(pct * 100)}%`),
+      h('div', { class: 'muted small' }, '動作完整度'), h('div', { class: 'side-num' }, state.reps ? `${state.quality}%` : '—'),
       h('div', { class: 'muted small' }, '節奏'), h('div', { class: 'stars', 'aria-label': `${state.stars} 顆星` }, stars)),
   );
 }
@@ -119,25 +120,25 @@ function drawRing() {
 function drawControls() {
   if (!els.controls) return;
   if (!sensor.connected) {
-    els.controls.replaceChildren(h('p', { class: 'muted center small' }, '連接感測器後就可以開始；或用下面的手動輸入。'));
+    els.controls.replaceChildren(h('p', { class: 'muted center small' }, '連接感測器後即可開始，也可以手動輸入次數。'));
     return;
   }
   els.controls.replaceChildren(state.running
-    ? h('button', { class: 'btn danger block big-btn', onclick: stop }, '⏹ 結束')
-    : h('button', { class: 'btn block big-btn', onclick: start }, '▶ 開始'));
+    ? h('button', { class: 'btn stop block big-btn', onclick: stop }, '結束')
+    : h('button', { class: 'btn block big-btn', onclick: start }, '開始'));
 }
 
 async function start() {
   Object.assign(state, { running: true, reps: 0, quality: 0, stars: 0 });
   drawChips(); drawRing(); drawControls();
-  try { await sensor.start(state.exId); } catch (e) { console.warn(e); state.running = false; toast('開始失敗，再試一次'); drawControls(); drawChips(); }
+  try { await sensor.start(state.exId); } catch (e) { console.warn(e); state.running = false; toast('無法開始，請再試一次'); drawControls(); drawChips(); }
 }
 
 async function stop() {
   try { await sensor.stop(); } catch (e) { console.warn(e); } // 感測器會再回報最後一次次數
   state.running = false;
   if (state.reps > 0) saveWorkout(false);
-  else toast('這次沒有算到次數喔');
+  else toast('這次沒有偵測到動作');
   drawChips(); drawControls(); drawToday();
 }
 
@@ -154,27 +155,27 @@ function addWorkout(w) {
 }
 
 function cheer(reps, ex) {
-  if (reps >= ex.goal) return `太厲害了！${ex.name} ${reps} 下，達成目標 🎉`;
-  if (reps >= ex.goal / 2) return `${ex.name} ${reps} 下，好棒！再一點點就達標 💪`;
-  return `做了 ${reps} 下，有動就很棒，明天再多一點 👍`;
+  if (reps >= ex.goal) return `${ex.name} ${reps} 次，已達成目標`;
+  if (reps >= ex.goal / 2) return `${ex.name} ${reps} 次，已完成目標的一半以上`;
+  return `已記錄 ${ex.name} ${reps} 次`;
 }
 
 // ---------- 手動輸入 ----------
 function manualCard() {
-  const exSel = h('select', { 'aria-label': '運動' }, EXERCISES.map((e) => h('option', { value: e.id }, `${e.emoji} ${e.name}`)));
-  const reps = h('input', { type: 'number', inputmode: 'numeric', min: '1', max: '5000', placeholder: '幾下？', 'aria-label': '次數' });
+  const exSel = h('select', { 'aria-label': '運動' }, EXERCISES.map((e) => h('option', { value: e.id }, e.name)));
+  const reps = h('input', { type: 'number', inputmode: 'numeric', min: '1', max: '5000', placeholder: '次數', 'aria-label': '次數' });
   const body = h('div', { class: 'manual-body', hidden: true },
     h('div', { class: 'grid2' }, exSel, reps),
     h('button', { class: 'btn block mt', onclick: () => {
       const n = Math.round(Number(reps.value));
-      if (!(n > 0 && n <= 5000)) return toast('請輸入次數');
+      if (!(n > 0 && n <= 5000)) return toast('請輸入正確的次數');
       const ex = byId(exSel.value);
       addWorkout({ exerciseId: ex.id, reps: n, quality: null, stars: 0, kcal: Math.round(n * ex.kcalPerRep * 10) / 10, manual: true });
       reps.value = '';
       toast(cheer(n, ex)); drawToday();
-    } }, '記下來'));
+    } }, '儲存'));
   return h('div', { class: 'card' },
-    h('button', { class: 'link-btn', onclick: () => { body.hidden = !body.hidden; } }, '✍️ 沒有感測器？手動輸入次數'),
+    h('button', { class: 'link-btn', onclick: () => { body.hidden = !body.hidden; } }, '沒有感測器？手動輸入次數', icon('chevron')),
     body);
 }
 
@@ -184,14 +185,14 @@ function drawToday() {
   const day = getDay();
   const total = day.workouts.reduce((s, w) => s + (Number(w.kcal) || 0), 0);
   els.today.replaceChildren(
-    h('h2', {}, '🏅 今天的運動'),
+    h('h2', {}, '今日運動'),
     day.workouts.length ? h('ul', { class: 'list' }, day.workouts.map((w) => {
       const ex = byId(w.exerciseId) || EXERCISES[0];
       return h('li', { class: 'list-item' },
         h('span', { class: 'muted small' }, w.time || ''),
-        h('span', { class: 'grow' }, `${ex.emoji} ${ex.name} ${w.reps} 下`),
+        h('span', { class: 'grow' }, `${ex.name} ${w.reps} 次`),
         h('span', { class: 'small muted' }, `${Math.round(w.kcal)} 大卡`));
-    })) : h('p', { class: 'muted' }, '今天還沒運動，一起動起來吧！'),
-    day.workouts.length ? h('p', { class: 'small' }, `一共消耗大約 ${Math.round(total)} 大卡`) : '',
+    })) : h('p', { class: 'muted small' }, '尚未記錄。'),
+    day.workouts.length ? h('p', { class: 'small' }, `共消耗約 ${Math.round(total)} 大卡`) : '',
   );
 }

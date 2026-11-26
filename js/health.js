@@ -77,16 +77,16 @@ export function calcBMR({ weightKg, heightCm, age, sex }) {
   return Math.round(sex === 'F' ? base - 161 : base + 5);
 }
 
-// 活動係數：平常很少動 / 每天有下課玩、走路 / 每天都有運動或校隊
+// 活動係數
 export const ACTIVITY = {
-  low:  { factor: 1.3, label: '很少動', hint: '大多坐著，很少跑跳' },
-  mid:  { factor: 1.5, label: '普通',   hint: '下課會玩、上學走路' },
-  high: { factor: 1.7, label: '很愛動', hint: '每天運動或參加校隊' },
+  low:  { factor: 1.3, label: '低',   hint: '大多時間坐著，很少運動' },
+  mid:  { factor: 1.5, label: '中等', hint: '常走路，或每週運動 1–3 次' },
+  high: { factor: 1.7, label: '高',   hint: '每週運動 4 次以上，或工作需要勞動' },
 };
 export const GOALS = {
-  keep: { label: '維持健康', emoji: '🙂', adjust: 0 },
-  lose: { label: '減脂',     emoji: '🔥', adjust: -0.10 },
-  gain: { label: '增肌',     emoji: '💪', adjust: +0.10 },
+  keep: { label: '維持健康', adjust: 0 },
+  lose: { label: '減脂',     adjust: -0.10 },
+  gain: { label: '增肌',     adjust: +0.10 },
 };
 
 // 每日總熱量消耗 TDEE = BMR × 活動係數

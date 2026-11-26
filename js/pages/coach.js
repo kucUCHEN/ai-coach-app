@@ -2,8 +2,9 @@
 import { h, toast, go, speak, incomingCall } from '../ui.js';
 import * as store from '../store.js';
 import * as ai from '../ai/index.js';
+import { icon } from '../icons.js';
 
-const QUICK = ['我要怎麼長高？', '晚餐吃什麼？', '我今天表現怎樣？'];
+const QUICK = ['晚餐怎麼吃比較好？', '幫我安排今天的運動', '我今天的表現如何？'];
 
 let controller = null;
 let recog = null;
@@ -19,17 +20,17 @@ export function parseProfileText(text) {
   const out = {};
   const hm = /身高\s*(?:是|有)?\s*(\d{2,3}(?:\.\d+)?)\s*(?:公分|cm|㎝)?/i.exec(text);
   const wm = /體重\s*(?:是|有)?\s*(\d{2,3}(?:\.\d+)?)\s*(?:公斤|kg|㎏)?/i.exec(text);
-  const am = /(\d{1,2})\s*歲/.exec(text);
-  if (hm) { const v = Number(hm[1]); if (v >= 90 && v <= 200) out.heightCm = v; }
-  if (wm) { const v = Number(wm[1]); if (v >= 12 && v <= 150) out.weightKg = v; }
-  if (am) { const v = Number(am[1]); if (v >= 5 && v <= 15) out.age = v; }
+  const am = /(\d{1,3})\s*歲/.exec(text);
+  if (hm) { const v = Number(hm[1]); if (v >= 90 && v <= 230) out.heightCm = v; }
+  if (wm) { const v = Number(wm[1]); if (v >= 12 && v <= 250) out.weightKg = v; }
+  if (am) { const v = Number(am[1]); if (v >= 2 && v <= 110) out.age = v; }
   if (/(我是|我)\s*(\d+\s*歲\s*(的)?)?\s*男(生|孩)|^\s*男(生|孩)|\s男(生|孩)/.test(text)) out.sex = 'M';
   if (/(我是|我)\s*(\d+\s*歲\s*(的)?)?\s*女(生|孩)|^\s*女(生|孩)|\s女(生|孩)/.test(text)) out.sex = 'F';
   return out;
 }
 
 function speakerBtn(text) {
-  return h('button', { class: 'coach-speak', type: 'button', 'aria-label': '念出來', onclick: () => speak(text) }, '🔊');
+  return h('button', { class: 'coach-speak', type: 'button', 'aria-label': '朗讀', onclick: () => speak(text) }, icon('speaker'));
 }
 
 function bubble(m) {
@@ -37,7 +38,7 @@ function bubble(m) {
   const textEl = h('div', { class: 'bubble-text' });
   textEl.textContent = m.content; // 一律用 textContent，不用 innerHTML
   return h('div', { class: 'msg ' + (isCoach ? 'from-coach' : 'from-me') },
-    isCoach ? h('div', { class: 'msg-avatar', 'aria-hidden': 'true' }, '🤖') : null,
+    isCoach ? h('div', { class: 'msg-avatar', 'aria-hidden': 'true' }, 'AI') : null,
     h('div', { class: 'bubble' },
       textEl,
       h('div', { class: 'msg-meta' }, h('span', {}, timeStr(m.time)), isCoach ? speakerBtn(m.content) : null),
@@ -53,10 +54,10 @@ export function render(root) {
 
   const badge = h('span', { class: 'demo-badge', hidden: !ai.isDemo() }, '示範模式');
   const list = h('div', { class: 'chat-list', 'aria-live': 'polite' });
-  const input = h('input', { type: 'text', class: 'chat-input', placeholder: '跟教練說說話…', enterkeyhint: 'send', 'aria-label': '輸入訊息', maxlength: '300' });
-  const sendBtn = h('button', { class: 'btn chat-send', type: 'submit', 'aria-label': '送出' }, '送出');
+  const input = h('input', { type: 'text', class: 'chat-input', placeholder: '輸入訊息', enterkeyhint: 'send', 'aria-label': '輸入訊息', maxlength: '300' });
+  const sendBtn = h('button', { class: 'chat-send', type: 'submit', 'aria-label': '送出' }, icon('send'));
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  const micBtn = h('button', { class: 'chat-mic', type: 'button', 'aria-label': '用說的', onclick: toggleMic }, '🎤');
+  const micBtn = h('button', { class: 'chat-mic', type: 'button', 'aria-label': '語音輸入', onclick: toggleMic }, icon('mic'));
 
   function refreshBadge() { badge.hidden = !(ai.isDemo() || ai.lastStatus().demo); }
   badge.hidden = !ai.isDemo();
@@ -66,9 +67,9 @@ export function render(root) {
     list.replaceChildren(...chat.map(bubble));
     if (!profile && chat.length === 0) {
       list.append(h('div', { class: 'coach-tip card' },
-        h('p', {}, '還不認識你喔！你可以：'),
-        h('button', { class: 'btn block', type: 'button', onclick: () => go('body') }, '⚖️ 去「身體」頁填資料'),
-        h('p', { class: 'small muted' }, '或直接在下面打字：「我身高145 體重38」'),
+        h('p', {}, '建立基本資料後，教練能給你更準確的建議。'),
+        h('button', { class: 'btn block', type: 'button', onclick: () => go('body') }, '建立基本資料'),
+        h('p', { class: 'small muted' }, '也可以直接輸入，例如：「我 35 歲，身高 170、體重 65」'),
       ));
     }
     if (scroll) requestAnimationFrame(() => { const v = root.closest('.view') || root; v.scrollTop = v.scrollHeight; });
@@ -97,15 +98,15 @@ export function render(root) {
       if (found.heightCm) bits.push(`身高 ${found.heightCm} 公分`);
       if (found.weightKg) { bits.push(`體重 ${found.weightKg} 公斤`); try { store.addWeight(found.weightKg); } catch {} }
       if (found.age) bits.push(`${found.age} 歲`);
-      if (found.sex) bits.push(found.sex === 'M' ? '男生' : '女生');
-      localReply = `好的，教練記下來了：${bits.join('、')} 📝`;
-      if (!p.heightCm || !p.weightKg) localReply += p.heightCm ? ' 再告訴我你的體重吧！' : ' 再告訴我你的身高吧！';
+      if (found.sex) bits.push(found.sex === 'M' ? '男' : '女');
+      localReply = `已更新你的資料：${bits.join('、')}。`;
+      if (!p.heightCm || !p.weightKg) localReply += p.heightCm ? ' 也請告訴我你的體重。' : ' 也請告訴我你的身高。';
     }
 
     drawChat();
     const typing = h('div', { class: 'msg from-coach typing' },
-      h('div', { class: 'msg-avatar', 'aria-hidden': 'true' }, '🤖'),
-      h('div', { class: 'bubble' }, h('span', { class: 'dots', 'aria-label': '教練正在想' }, '・・・')));
+      h('div', { class: 'msg-avatar', 'aria-hidden': 'true' }, 'AI'),
+      h('div', { class: 'bubble' }, h('span', { class: 'dots', 'aria-label': '正在回覆' }, '・・・')));
     list.append(typing);
     { const v = root.closest('.view') || root; v.scrollTop = v.scrollHeight; }
     sendBtn.disabled = true;
@@ -113,7 +114,7 @@ export function render(root) {
     controller = new AbortController();
     let reply = '';
     try {
-      if (localReply && ai.isDemo()) reply = localReply + ' 我們一起加油吧！💪';
+      if (localReply && ai.isDemo()) reply = localReply + ' 我會依照這些資料給你建議。';
       else {
         reply = await ai.chat(chat.map((m) => ({ role: m.role, content: m.content })), { signal: controller.signal });
         if (localReply) reply = localReply + '\n' + reply;
@@ -131,7 +132,7 @@ export function render(root) {
   }
 
   function toggleMic() {
-    if (!SR) { toast('這支手機不能直接聽喔，請按鍵盤上的 🎤 麥克風說話', 3200); input.focus(); return; }
+    if (!SR) { toast('此瀏覽器不支援語音輸入，請使用鍵盤上的麥克風', 3200); input.focus(); return; }
     if (recog) { recog.stop(); return; }
     try {
       recog = new SR();
@@ -139,7 +140,7 @@ export function render(root) {
       recog.interimResults = true;
       recog.maxAlternatives = 1;
       micBtn.classList.add('listening');
-      micBtn.setAttribute('aria-label', '停止聽');
+      micBtn.setAttribute('aria-label', '停止');
       let finalText = '';
       recog.onresult = (e) => {
         let t = '';
@@ -147,12 +148,12 @@ export function render(root) {
         input.value = t;
       };
       recog.onerror = (e) => {
-        if (e.error === 'not-allowed' || e.error === 'service-not-allowed') toast('需要允許使用麥克風喔，或用鍵盤上的 🎤', 3200);
-        else if (e.error !== 'aborted' && e.error !== 'no-speech') toast('沒聽清楚，再說一次好嗎？');
+        if (e.error === 'not-allowed' || e.error === 'service-not-allowed') toast('請允許使用麥克風，或使用鍵盤上的麥克風', 3200);
+        else if (e.error !== 'aborted' && e.error !== 'no-speech') toast('沒有聽清楚，請再說一次');
       };
       recog.onend = () => {
         micBtn.classList.remove('listening');
-        micBtn.setAttribute('aria-label', '用說的');
+        micBtn.setAttribute('aria-label', '語音輸入');
         recog = null;
         if (finalText.trim()) send(finalText);
       };
@@ -160,7 +161,7 @@ export function render(root) {
     } catch {
       recog = null;
       micBtn.classList.remove('listening');
-      toast('請按鍵盤上的 🎤 麥克風說話', 3000);
+      toast('請使用鍵盤上的麥克風', 3000);
     }
   }
 
@@ -169,21 +170,22 @@ export function render(root) {
 
   root.append(
     h('div', { class: 'coach-page' },
-      h('div', { class: 'coach-notice', role: 'note' }, 'AI教練不是醫生，身體不舒服要告訴大人喔'),
+      
       h('section', { class: 'coach-hero card' },
         h('div', { class: 'coach-hero-top' },
-          h('div', { class: 'coach-face', 'aria-hidden': 'true' }, '🤖'),
-          h('div', { class: 'coach-name' }, h('strong', {}, 'AI 教練'), ' ', badge,
-            h('div', { class: 'coach-ai-note' }, '我是 AI 教練（電腦程式），不是真人')),
+          h('div', { class: 'coach-face', 'aria-hidden': 'true' }, 'AI'),
+          h('div', { class: 'coach-name' }, h('strong', {}, 'AI 健康教練'), ' ', badge,
+            h('div', { class: 'coach-ai-note' }, '由 AI 產生回覆，不是真人')),
           speakerBtn(greet),
         ),
         greetText,
-        h('button', { class: 'btn secondary block coach-call', type: 'button', onclick: () => incomingCall({
-          title: 'AI教練來電', message: ai.coachNudge({ profile: store.getProfile(), day: store.getDay() }),
-          onAccept: (msg) => { addMsg('assistant', '📞 ' + msg); drawChat(); },
-        }) }, '📞 教練來電（示範）'),
+        h('button', { class: 'btn ghost block coach-call', type: 'button', onclick: () => incomingCall({
+          title: 'AI 教練', message: ai.coachNudge({ profile: store.getProfile(), day: store.getDay() }),
+          onAccept: (msg) => { addMsg('assistant', msg); drawChat(); },
+        }) }, icon('phone'), '模擬來電提醒'),
       ),
       list,
+      h('p', { class: 'fine center' }, 'AI 建議僅供參考，不能取代醫療診斷。身體不適請就醫。'),
       h('div', { class: 'quick-row' }, QUICK.map((q) => h('button', { class: 'chip', type: 'button', onclick: () => send(q) }, q))),
       form,
     ),

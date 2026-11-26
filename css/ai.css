@@ -1,29 +1,24 @@
-/* ===== AI教練頁、老師設定頁（只用 app.css 的變數） ===== */
+/* ===== AI 教練頁、AI 連線頁（只用 app.css 的變數） ===== */
 
 /* ---- 教練頁 ---- */
 .coach-page { display: flex; flex-direction: column; gap: 12px; }
-.coach-notice {
-  position: sticky; top: -4px; z-index: 5;
-  margin: 0 -16px; padding: 6px 16px;
-  background: var(--orange-soft); color: #92400e;
-  font-size: 15px; font-weight: 600; text-align: center;
-}
-.coach-hero { margin: 0; background: linear-gradient(160deg, var(--green-soft), var(--card) 70%); }
+.coach-hero { margin: 0; }
 .coach-hero-top { display: flex; align-items: center; gap: 12px; }
 .coach-face {
-  flex: none; width: 64px; height: 64px; border-radius: 50%;
-  display: grid; place-items: center; font-size: 40px;
-  background: var(--card); box-shadow: 0 0 0 3px var(--green);
+  flex: none; width: 48px; height: 48px; border-radius: 50%;
+  display: grid; place-items: center; font-size: 15px; font-weight: 700;
+  background: var(--accent); color: #fff;
 }
-.coach-name { flex: 1; min-width: 0; font-size: 21px; }
-.coach-ai-note { font-size: 15px; font-weight: 700; color: var(--purple); }
-.coach-greet-text { margin: 12px 0; font-size: 21px; font-weight: 600; line-height: 1.5; }
+.coach-name { flex: 1; min-width: 0; font-size: 17px; }
+.coach-ai-note { font-size: 13px; color: var(--muted); }
+.coach-greet-text { margin: 14px 0 12px; font-size: 18px; line-height: 1.6; }
 .coach-call { margin-top: 4px; }
 
 .coach-speak {
   flex: none; width: 48px; height: 48px; border: 0; border-radius: 50%;
-  background: transparent; font-size: 22px; cursor: pointer;
+  background: transparent; color: var(--muted); display: grid; place-items: center; cursor: pointer;
 }
+.coach-speak svg.icon { width: 20px; height: 20px; }
 .coach-speak:active { background: var(--line); }
 
 .chat-list { display: flex; flex-direction: column; gap: 10px; }
@@ -35,25 +30,26 @@
 .msg.from-me { justify-content: flex-end; }
 .msg-avatar {
   flex: none; width: 36px; height: 36px; border-radius: 50%;
-  display: grid; place-items: center; font-size: 22px; background: var(--green-soft);
+  display: grid; place-items: center; font-size: 11px; font-weight: 700; background: var(--accent-soft); color: var(--accent-strong);
 }
 .bubble {
-  max-width: 82%; padding: 10px 14px 4px; border-radius: 18px;
-  background: var(--card); box-shadow: 0 1px 3px rgba(0,0,0,.06);
+  max-width: 82%; padding: 10px 14px 4px; border-radius: 16px;
+  background: var(--card); box-shadow: var(--shadow);
 }
 .from-coach .bubble { border-bottom-left-radius: 6px; }
-.from-me .bubble { background: var(--green); color: #fff; border-bottom-right-radius: 6px; padding-bottom: 8px; }
+.from-me .bubble { background: var(--text); color: #fff; border-bottom-right-radius: 6px; padding-bottom: 8px; }
 .bubble-text { white-space: pre-wrap; word-break: break-word; }
 .msg-meta { display: flex; align-items: center; justify-content: space-between; gap: 6px; font-size: 13px; color: var(--muted); min-height: 20px; }
 .from-me .msg-meta { color: rgba(255,255,255,.85); justify-content: flex-end; }
-.msg-meta .coach-speak { width: 44px; height: 44px; margin: -6px -10px -4px 0; font-size: 20px; }
+.msg-meta .coach-speak { width: 40px; height: 40px; margin: -6px -10px -4px 0; }
+.msg-meta .coach-speak svg.icon { width: 16px; height: 16px; }
 .typing .dots { display: inline-block; padding: 4px 0 8px; letter-spacing: 4px; color: var(--muted); animation: blink 1s infinite; }
 @keyframes blink { 50% { opacity: .3; } }
 @media (prefers-reduced-motion: reduce) { .typing .dots { animation: none; } }
 
 .quick-row { display: flex; gap: 8px; overflow-x: auto; padding: 2px 0; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
 .quick-row::-webkit-scrollbar { display: none; }
-.quick-row .chip { flex: none; min-height: 48px; background: var(--blue-soft); color: var(--blue); font-size: 17px; }
+.quick-row .chip { flex: none; }
 
 .chat-composer {
   position: sticky; bottom: 0; z-index: 0; /* 0：底部分頁列要蓋在它上面 */
@@ -63,35 +59,41 @@
   box-shadow: 0 40px 0 0 var(--bg); /* 蓋住下方捲上來的訊息 */
 }
 .chat-input { flex: 1; min-width: 0; }
-.chat-send { flex: none; padding: 0 16px; }
-.chat-mic {
-  flex: none; width: 52px; height: 52px; border-radius: 50%; border: 0;
-  background: var(--purple-soft); font-size: 24px; cursor: pointer;
+.chat-send, .chat-mic {
+  flex: none; width: 48px; height: 48px; border-radius: 50%; border: 0;
+  display: grid; place-items: center; cursor: pointer;
 }
-.chat-mic.listening { background: var(--red); animation: blink 1s infinite; }
+.chat-send { background: var(--accent); color: #fff; }
+.chat-send:disabled { opacity: .45; }
+.chat-mic { background: var(--card); color: var(--muted); box-shadow: inset 0 0 0 1px var(--line); }
+.chat-mic.listening { background: var(--danger); color: #fff; box-shadow: none; animation: blink 1s infinite; }
+.chat-input { border-radius: 999px; }
 
-/* ---- 老師設定 ---- */
+/* ---- AI 連線 ---- */
 .pw-wrap { position: relative; }
 .pw-wrap input { padding-right: 56px; }
 .eye-btn {
   position: absolute; right: 2px; top: 50%; transform: translateY(-50%);
-  width: 48px; height: 48px; border: 0; background: transparent; font-size: 22px; cursor: pointer;
+  width: 48px; height: 48px; border: 0; background: transparent; color: #9aa1a8; display: grid; place-items: center; cursor: pointer;
 }
-.teacher-msg { min-height: 1.5em; margin: 10px 0; font-weight: 600; }
+.eye-btn svg.icon { width: 20px; height: 20px; }
+.eye-btn.on { color: var(--accent); }
+.teacher-msg { min-height: 1.5em; margin: 10px 0; font-size: 15px; }
 .teacher-msg.good { color: var(--green); }
 .teacher-msg.bad { color: var(--red); }
-.teacher-status { margin: 0 0 6px; padding: 10px 12px; border-radius: 12px; background: var(--blue-soft); color: #1e40af; font-size: 16px; }
+.teacher-status { margin: 0 0 6px; padding: 10px 12px; border-radius: 10px; background: var(--surface); color: var(--muted); font-size: 14px; }
 .teacher-head { justify-content: space-between; }
 .teacher-head h2 { margin: 0; }
-.teacher-head .btn { min-height: 48px; padding: 0 14px; font-size: 17px; }
+.teacher-head .btn { min-height: 38px; padding: 0 12px; font-size: 14px; }
+.teacher-head .btn svg.icon { width: 16px; height: 16px; }
 .prov-row { display: flex; flex-wrap: wrap; gap: 8px; }
-.prov-row .chip { min-height: 48px; }
+
 .teacher-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
-.teacher-tips ul { margin: 0; padding-left: 1.2em; }
+.teacher-tips ul { margin: 0; padding-left: 1.2em; color: var(--muted); font-size: 15px; }
 .teacher-tips li { margin: 6px 0; }
 
 /* app.css 的 .demo-badge 設了 display，要讓 hidden 屬性有效 */
 .demo-badge[hidden] { display: none; }
 
-.teacher-warn { margin: 10px 0 0; padding: 10px 12px; border-radius: 12px; background: var(--red-soft); color: #b91c1c; font-weight: 700; font-size: 17px; }
+.teacher-warn { margin: 10px 0 0; padding: 10px 12px; border-radius: 10px; background: var(--warn-soft); color: var(--warn); font-size: 14px; }
 .teacher-warn[hidden] { display: none; }

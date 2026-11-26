@@ -1,12 +1,12 @@
 // App 啟動與換頁
 const ROUTES = {
-  coach:    { title: 'AI教練',   load: () => import('./pages/coach.js') },
-  body:     { title: '我的身體', load: () => import('./pages/body.js') },
-  food:     { title: '飲食',     load: () => import('./pages/food.js') },
-  exercise: { title: '運動',     load: () => import('./pages/exercise.js') },
-  score:    { title: '今日評分', load: () => import('./pages/score.js') },
-  settings: { title: '設定',     load: () => import('./pages/settings.js') },
-  teacher:  { title: '老師設定', load: () => import('./pages/teacher.js') },
+  coach:    { title: 'AI 教練',   load: () => import('./pages/coach.js') },
+  body:     { title: '身體',      load: () => import('./pages/body.js') },
+  food:     { title: '飲食',      load: () => import('./pages/food.js') },
+  exercise: { title: '運動',      load: () => import('./pages/exercise.js') },
+  score:    { title: '健康紀錄',  load: () => import('./pages/score.js') },
+  settings: { title: '設定',      load: () => import('./pages/settings.js') },
+  ai:       { title: 'AI 連線',   load: () => import('./pages/teacher.js') },
 };
 const DEFAULT = 'coach';
 
@@ -16,6 +16,8 @@ let navToken = 0;
 async function navigate() {
   const name = (location.hash.slice(1).split('?')[0]) || DEFAULT;
   const route = ROUTES[name] || ROUTES[DEFAULT];
+  // 頂部右上角：設定頁、AI 連線頁不顯示設定鈕
+  document.querySelector('.topbar .icon-btn').hidden = name === 'settings' || name === 'ai';
   const token = ++navToken;
   try { currentPage?.leave?.(); } catch (e) { console.error(e); }
   currentPage = null;

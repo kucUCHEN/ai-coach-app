@@ -1,5 +1,6 @@
-// 設定：提醒時間、教練來電、字體大小、示範資料、清除資料、老師設定、關於。
+// 設定：提醒、字體大小、AI 連線入口、示範資料、清除資料、關於。
 import { h, toast, incomingCall } from '../ui.js';
+import { icon } from '../icons.js';
 import { getSettings, setSettings, getProfile, setProfile, setDay, addWeight, getRewards, setRewards, clearAll, todayKey } from '../store.js';
 import { FOODS } from '../foods.js';
 import { EXERCISES } from '../sensor/exercises.js';
@@ -7,9 +8,9 @@ import { scoreDay } from '../health.js';
 
 let root = null;
 
-// 字體大小：標準 19px／大 22px。main.js 啟動時也可以呼叫 applyFont() 讓設定一打開就生效。
+// 字體大小：標準 17px／大 20px。main.js 啟動時也可以呼叫 applyFont() 讓設定一打開就生效。
 export function applyFont(scale = getSettings().fontScale) {
-  document.documentElement.style.setProperty('--font', scale > 1 ? '22px' : '19px');
+  document.documentElement.style.setProperty('--font', scale > 1 ? '20px' : '17px');
 }
 
 export function render(r) {
@@ -19,80 +20,90 @@ export function render(r) {
 }
 
 function draw() {
-  root.replaceChildren(remindCard(), callCard(), fontCard(), demoCard(), teacherCard(), aboutCard(), dangerCard());
+  root.replaceChildren(
+    section('提醒', remindCard(), callCard()),
+    section('顯示', fontCard()),
+    section('AI 與資料', aiCard(), demoCard(), dangerCard()),
+    aboutCard(),
+  );
 }
+const section = (title, ...cards) => h('section', { class: 'settings-section' }, h('div', { class: 'section-title' }, title), ...cards);
 
 // ---------- 提醒時間 ----------
 function remindCard() {
   const s = getSettings();
   const times = [...(s.remindTimes || [])].sort();
-  const input = h('input', { type: 'time', value: '18:00', 'aria-label': '新的提醒時間' });
+  const input = h('input', { type: 'time', value: '18:00', 'aria-label': '新增提醒時間' });
   return h('div', { class: 'card' },
-    h('h2', {}, '⏰ 提醒時間'),
-    h('p', { class: 'muted small' }, '教練會在這些時間提醒你（次數可以自己決定，不會太煩）。'),
+    h('h2', {}, '提醒時間'),
     times.length ? h('ul', { class: 'list' }, times.map((t) => h('li', { class: 'list-item' },
-      h('span', { class: 'grow big-time' }, t),
-      h('span', { class: 'small muted' }, label(t)),
+      h('span', { class: 'time-big' }, t),
+      h('span', { class: 'grow muted small' }, label(t)),
       h('button', { class: 'del-btn', 'aria-label': `刪除 ${t}`, onclick: () => {
         const ss = getSettings(); ss.remindTimes = (ss.remindTimes || []).filter((x) => x !== t); setSettings(ss); draw();
-      } }, '🗑️')))) : h('p', { class: 'muted' }, '目前沒有提醒。'),
+      } }, icon('close'))))) : h('p', { class: 'muted small' }, '尚未設定提醒。'),
     h('div', { class: 'row mt' }, input, h('button', { class: 'btn', onclick: () => {
       const v = input.value; if (!v) return;
       const ss = getSettings(); ss.remindTimes = [...new Set([...(ss.remindTimes || []), v])].sort();
-      setSettings(ss); toast(`加好了：${v}`); draw();
+      setSettings(ss); toast(`已新增 ${v}`); draw();
     } }, '新增')),
-    h('p', { class: 'muted tiny' }, '小提醒：網頁 App 要開著才會提醒；之後做成手機通知。'),
+    h('p', { class: 'fine' }, '網頁版需保持 App 開啟才會提醒。'),
   );
 }
 function label(t) {
   const hh = Number(t.slice(0, 2));
-  return hh < 10 ? '早上・量體重' : hh < 14 ? '中午・拍午餐' : hh < 20 ? '傍晚・運動時間' : '睡前・看評分';
+  return hh < 10 ? '量體重' : hh < 14 ? '記錄午餐' : hh < 20 ? '運動' : '查看今日紀錄';
 }
 
 // ---------- 教練來電 ----------
 function callCard() {
-  return h('div', { class: 'card' },
-    h('h2', {}, '📞 教練來電'),
-    h('p', { class: 'muted small' }, '運動時間到了，教練會「打電話」叫你。'),
-    h('button', { class: 'btn block', onclick: () => {
-      const name = getProfile()?.name || '小朋友';
+  return h('div', { class: 'card row between' },
+    h('div', {}, h('div', { class: 'bold' }, '教練來電'), h('div', { class: 'muted small' }, '到了運動時間，以來電畫面提醒。')),
+    h('button', { class: 'btn ghost', onclick: () => {
       setTimeout(() => incomingCall({
-        title: 'AI教練來電',
-        message: `${name}，運動時間到囉！今天來跳繩兩百下，跳完記得喝水喔！`,
-        onAccept: () => toast('教練：運動時間到囉！🏃'),
-      }), 800);
-    } }, '📞 試試教練來電'),
+        title: 'AI 教練',
+        message: '運動時間到了。今天可以做 20 分鐘的跳繩或快走，結束後記得補充水分。',
+        onAccept: () => toast('運動時間到了'),
+      }), 600);
+    } }, '試用'),
   );
 }
 
 // ---------- 字體大小 ----------
 function fontCard() {
   const s = getSettings();
+  const big = (s.fontScale || 1) > 1;
   const set = (scale) => { const ss = getSettings(); ss.fontScale = scale; setSettings(ss); applyFont(scale); draw(); };
-  return h('div', { class: 'card' },
-    h('h2', {}, '🔠 字體大小'),
-    h('div', { class: 'choice-row' },
-      h('button', { class: 'chip' + ((s.fontScale || 1) <= 1 ? ' on' : ''), onclick: () => set(1) }, '標準'),
-      h('button', { class: 'chip big-chip' + ((s.fontScale || 1) > 1 ? ' on' : ''), onclick: () => set(1.15) }, '大')),
+  return h('div', { class: 'card row between' },
+    h('div', { class: 'bold' }, '字體大小'),
+    h('div', { class: 'segment small-seg' },
+      h('button', { class: big ? '' : 'on', onclick: () => set(1) }, '標準'),
+      h('button', { class: big ? 'on' : '', onclick: () => set(1.15) }, '大')),
   );
+}
+
+// ---------- AI 連線 ----------
+function aiCard() {
+  return h('a', { class: 'card nav-row', href: '#ai' },
+    h('div', { class: 'grow' }, h('div', { class: 'bold' }, 'AI 連線設定'), h('div', { class: 'muted small' }, '選擇 AI 服務、輸入 API key（需管理密碼）')),
+    icon('chevron'));
 }
 
 // ---------- 示範資料 ----------
 function demoCard() {
-  return h('div', { class: 'card' },
-    h('h2', {}, '🧪 示範資料'),
-    h('p', { class: 'muted small' }, '產生過去 14 天的體重、餐點和運動紀錄，方便展示。'),
-    h('button', { class: 'btn secondary block', onclick: () => {
-      if (!confirm('要載入示範資料嗎？過去 14 天的紀錄會被換掉（今天的不會）。')) return;
-      loadDemo(); toast('示範資料載入好了！去「評分」看看'); draw();
-    } }, '載入示範資料'),
+  return h('div', { class: 'card row between' },
+    h('div', {}, h('div', { class: 'bold' }, '載入示範資料'), h('div', { class: 'muted small' }, '產生過去 14 天的紀錄，方便展示。')),
+    h('button', { class: 'btn ghost', onclick: () => {
+      if (!confirm('載入示範資料？過去 14 天的紀錄會被取代（今天的不受影響）。')) return;
+      loadDemo(); toast('已載入示範資料'); draw();
+    } }, '載入'),
   );
 }
 
 // 產生合理的假資料：體重慢慢下降一點點、每天 3～4 餐、1～3 次運動
 function loadDemo() {
   let p = getProfile();
-  if (!p) { p = { name: '小安', age: 10, sex: 'M', heightCm: 140, weightKg: 37.2, goal: 'lose', activity: 'mid' }; setProfile(p); }
+  if (!p) { p = { name: '示範使用者', age: 35, sex: 'M', heightCm: 172, weightKg: 74.5, goal: 'lose', activity: 'mid' }; setProfile(p); }
   const pickFood = (group) => { const list = FOODS.filter((f) => f.group === group); return list[Math.floor(Math.random() * list.length)]; };
   const meal = (time, foods) => ({
     id: time + Math.random().toString(36).slice(2, 7), time, photo: false,
@@ -124,34 +135,21 @@ function loadDemo() {
   setRewards(rewards);
 }
 
-// ---------- 老師設定 ----------
-function teacherCard() {
-  return h('div', { class: 'card' },
-    h('h2', {}, '👩‍🏫 老師／家長'),
-    h('a', { class: 'btn ghost block', href: '#teacher' }, '進入「老師設定」'),
-  );
-}
-
 // ---------- 關於 ----------
 function aboutCard() {
-  return h('div', { class: 'card' },
-    h('h2', {}, 'ℹ️ 關於 AI健康教練'),
-    h('ul', { class: 'about' },
-      h('li', {}, 'AI教練不是醫生。身體不舒服，一定要跟爸爸媽媽說、去看醫生。'),
-      h('li', {}, '小朋友還在長大，每週只建議減一點點，不要餓肚子。'),
-      h('li', {}, '你的資料只存在這支手機裡，不會傳到別的地方。'),
-      h('li', {}, '熱量和 BMI 都是「大約」的數字，參考就好。'),
-    ),
+  return h('div', { class: 'about' },
+    h('p', {}, 'AI 健康教練提供的建議僅供參考，不能取代醫師或營養師的診斷。身體不適請就醫。'),
+    h('p', {}, '熱量與 BMI 為公式估算值。所有資料只存在這支手機，不會上傳。'),
   );
 }
 
 // ---------- 清除資料 ----------
 function dangerCard() {
-  return h('div', { class: 'card' },
-    h('h2', {}, '🧹 重新開始'),
-    h('button', { class: 'btn danger block', onclick: () => {
-      if (!confirm('真的要清除你的身體、飲食、運動和點數資料嗎？刪掉就找不回來了喔！\n（老師密碼和 AI key 不會刪除，要到「老師設定」清除）')) return;
-      clearAll(); applyFont(1); toast('資料清除好了'); location.hash = '#body';
-    } }, '清除我的資料'),
+  return h('div', { class: 'card row between' },
+    h('div', {}, h('div', { class: 'bold' }, '清除個人資料'), h('div', { class: 'muted small' }, '刪除身體、飲食、運動與點數紀錄。')),
+    h('button', { class: 'btn danger', onclick: () => {
+      if (!confirm('確定要清除所有個人紀錄嗎？此動作無法復原。\n（AI 連線設定與 API key 不會被刪除）')) return;
+      clearAll(); applyFont(1); toast('已清除'); location.hash = '#body';
+    } }, '清除'),
   );
 }
