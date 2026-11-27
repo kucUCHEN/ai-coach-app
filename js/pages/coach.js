@@ -258,8 +258,14 @@ export function render(root) {
     }
   }
 
+  // 通話鍵：跟教練講電話（有 API key 時是真的語音對話）
+  const startCall = () => incomingCall({
+    ...ai.callOptions(store.getProfile(), store.getDay()),
+    onAccept: (msg) => { addMsg('assistant', msg); drawChat(); },
+  });
+  const callBtn = h('button', { class: 'chat-call', type: 'button', 'aria-label': '打電話給教練', onclick: startCall }, icon('phone'));
   const form = h('form', { class: 'chat-composer', onsubmit: (e) => { e.preventDefault(); send(input.value); } },
-    micBtn, input, sendBtn);
+    micBtn, input, sendBtn, callBtn);
   const quick = QUICK[ageMode(profile)] || QUICK.adult;
 
   refreshGreet();
@@ -285,7 +291,10 @@ export function render(root) {
       form,
     ),
   );
-  drawChat(false); // 打開時停在上面，先看到教練的問候
+  drawChat(false);
+  // 打開時直接停在最新訊息（等版面排好再捲到底）
+  const toBottom = () => { const v = root.closest('.view') || root; v.scrollTop = v.scrollHeight; };
+  requestAnimationFrame(() => { toBottom(); setTimeout(toBottom, 150); });
 
   unsub = store.subscribe((k) => { if (k === 'teacher.ai') refreshBadge(); });
 }
