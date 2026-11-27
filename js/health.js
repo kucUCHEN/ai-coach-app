@@ -38,11 +38,14 @@ const CHILD_BMI = {
 };
 // 18 歲以上：成人標準（國健署）
 const ADULT_BMI = [18.5, 24, 27];
+// 65 歲以上：國健署建議長者 BMI 維持在 22–27 之間較合適（過瘦風險較高）；肥胖切點沿用 30
+const SENIOR_BMI = [22, 27, 30];
 
 // 依年齡、性別找出這個人的切點 {under, over, obese, source}
 // age 可以有小數（例如 10.5 歲）；只填整歲時就用整歲那一列。
 export function bmiCutoffs(age, sex) {
   const a = Number(age);
+  if (a >= 65) return { under: SENIOR_BMI[0], over: SENIOR_BMI[1], obese: SENIOR_BMI[2], source: 'senior' };
   if (a >= 18) return { under: ADULT_BMI[0], over: ADULT_BMI[1], obese: ADULT_BMI[2], source: 'adult' };
   const table = CHILD_BMI[sex === 'F' ? 'F' : 'M'];
   const half = Math.max(2, Math.floor((a || 2) * 2) / 2); // 往下取到半歲，最小 2 歲
@@ -89,6 +92,46 @@ export const GOALS = {
   gain: { label: '增肌',     adjust: +0.10 },
 };
 
+// ---------- 年齡模式 ----------
+// child：未滿 13 歲（兒童模式：不扣熱量、不顯示剩餘熱量、用簡單說法）
+// teen：13–17 歲（不提供減脂；增肌只小幅增加）
+// adult：18–64 歲；senior：65 歲以上
+export function ageMode(p) {
+  const a = Number(p?.age);
+  if (!a) return 'adult';
+  if (a < 13) return 'child';
+  if (a < 18) return 'teen';
+  if (a >= 65) return 'senior';
+  return 'adult';
+}
+export const isMinor = (p) => Number(p?.age) > 0 && Number(p.age) < 18;
+
+// 這個人可以選的目標（未成年不能選減脂；兒童只有維持／健康成長）
+export function goalsFor(p) {
+  const m = ageMode(p);
+  if (m === 'child') return { keep: { label: '健康成長', adjust: 0 } };
+  if (m === 'teen') return { keep: { label: '健康成長', adjust: 0 }, gain: { label: '增肌（成長期）', adjust: +0.05 } };
+  return GOALS;
+}
+// 實際生效的目標（舊資料裡未成年若選了減脂，一律當成維持）
+export function effectiveGoal(p) {
+  const g = goalsFor(p);
+  return g[p?.goal] ? p.goal : 'keep';
+}
+
+// 減脂速度（只給成人）：gentle 溫和（TDEE −10%）、standard 標準（每週約 0.5 公斤，約 −550 大卡）
+export const PACES = {
+  gentle:   { label: '溫和', hint: '每天少吃約 10%，比較容易持續' },
+  standard: { label: '標準', hint: '每週約 0.5 公斤（每天約少 550 大卡）' },
+};
+
+// 慢性病／注意事項（給教練與建議用）
+export const CONDITIONS = {
+  hypertension: { label: '高血壓', emoji: '🩺' },
+  diabetes:     { label: '血糖偏高／糖尿病', emoji: '🍬' },
+  joint:        { label: '膝蓋／關節不適', emoji: '🦵' },
+};
+
 // 每日總熱量消耗 TDEE = BMR × 活動係數
 export function calcTDEE(profile) {
   const bmr = calcBMR(profile || {});
@@ -102,34 +145,70 @@ export function calcTDEE(profile) {
 export function dailyTarget(profile) {
   const tdee = calcTDEE(profile);
   if (!tdee) return null;
-  const adj = (GOALS[profile.goal] || GOALS.keep).adjust;
-  return Math.round((tdee * (1 + adj)) / 10) * 10;
+  const goal = effectiveGoal(profile);
+  let t = tdee * (1 + (goalsFor(profile)[goal]?.adjust || 0));
+  if (goal === 'lose' && profile.pace === 'standard') {
+    // 每週約 0.5 公斤 ≈ 每天少 550 大卡，但不低於基礎代謝，也不低於 1200（女）／1500（男）
+    const floor = Math.max(calcBMR(profile) || 0, profile.sex === 'F' ? 1200 : 1500);
+    t = Math.max(tdee - 550, floor);
+  }
+  return Math.round(t / 10) * 10;
+}
+
+// 每日蛋白質目標（克）
+export function proteinTarget(p) {
+  const kg = Number(p?.weightKg) || 0;
+  const m = ageMode(p), goal = effectiveGoal(p);
+  const perKg = m === 'child' ? 1.0 : m === 'teen' ? (goal === 'gain' ? 1.4 : 1.1) : m === 'senior' ? 1.1 : goal === 'gain' ? 1.6 : 1.2;
+  return { grams: Math.round(kg * perKg), perKg };
 }
 
 // ---------- 今日評分 ----------
 export const PASS_SCORE = 70;
-// 每天的運動目標：做 2 次運動、而且一共消耗 40 大卡（約跳繩 400 下）
-export const EXERCISE_GOAL = { sessions: 2, kcal: 40 };
 
 export const sumMealKcal = (day) => (day?.meals || []).reduce((s, m) => s + (Number(m.kcal) || 0), 0);
 export const sumWorkoutKcal = (day) => (day?.workouts || []).reduce((s, w) => s + (Number(w.kcal) || 0), 0);
+export const workoutMinutes = (w) => Number(w.minutes) || Math.round((Number(w.reps) || 0) / 20); // 次數型約 20 次 ≈ 1 分鐘
 
-// 飲食分（0–100）：吃的熱量越接近目標越高。
-// 差距 10% 以內都算 100 分，之後每多差 1% 扣 2 分。沒有記錄 → null（不計分）。
-export function dietScore(day, target) {
-  if (!day?.meals?.length || !target) return null;
-  const ratio = sumMealKcal(day) / target;
-  const off = Math.max(0, Math.abs(1 - ratio) - 0.10);
-  return clamp(Math.round(100 - off * 200));
+// 這個時間點，一天的飲食應該吃到幾成（過去的日子 = 1）
+function expectedShare(date, now = new Date()) {
+  const isToday = !date || date === `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  if (!isToday) return 1;
+  const h = now.getHours() + now.getMinutes() / 60;
+  if (h < 10) return 0.3;
+  if (h < 14) return 0.6;
+  if (h < 19) return 0.75;
+  return 1;
 }
 
-// 運動分（0–100）：一半看「做了幾次運動」，一半看「消耗多少熱量」。
-export function exerciseScore(day, goal = EXERCISE_GOAL) {
+// 飲食分（0–100）：
+// - 吃太多：超過目標 10% 以後每多 1% 扣分（減脂目標扣得比較重）
+// - 吃太少：只和「這個時間應該吃到的量」比，所以中午不會因為還沒吃晚餐被扣分
+// 沒有記錄 → null（不計分）
+export function dietScore(day, target, profile) {
+  if (!day?.meals?.length || !target) return null;
+  const eaten = sumMealKcal(day);
+  const goal = profile ? effectiveGoal(profile) : 'keep';
+  const overPct = eaten / target - 1;
+  const overW = goal === 'lose' ? 4 : goal === 'gain' ? 1.5 : 2.5;
+  const over = Math.max(0, overPct - 0.10) * 100 * overW;
+  const share = expectedShare(day.date);
+  const underPct = 1 - eaten / (target * share);
+  const underW = goal === 'gain' ? 2.5 : 1.5;
+  const under = share < 1 ? Math.max(0, underPct - 0.35) * 100 * underW : Math.max(0, underPct - 0.15) * 100 * underW;
+  return clamp(Math.round(100 - over - under));
+}
+
+// 每天的運動目標：一共約 30 分鐘（次數型以 20 次 ≈ 1 分鐘換算），至少 1 項
+export function exerciseGoal(p) {
+  const m = ageMode(p);
+  return { minutes: m === 'child' || m === 'teen' ? 60 : 30 };   // 兒少：每天 60 分鐘（WHO 建議）
+}
+export function exerciseScore(day, profile) {
   const list = day?.workouts || [];
   if (!list.length) return 0;
-  const a = Math.min(1, list.length / goal.sessions);
-  const b = Math.min(1, sumWorkoutKcal(day) / goal.kcal);
-  return clamp(Math.round(50 * a + 50 * b));
+  const mins = list.reduce((s, w) => s + workoutMinutes(w), 0);
+  return clamp(Math.round(30 + 70 * Math.min(1, mins / exerciseGoal(profile).minutes)));
 }
 
 // 總分：飲食、運動各占一半（飲食沒記錄就當 0 分）
@@ -140,10 +219,16 @@ export function totalScore(diet, exercise) {
 // 一次算好今天全部分數
 export function scoreDay(day, profile) {
   const target = profile ? dailyTarget(profile) : null;
-  const diet = dietScore(day, target);
-  const exercise = exerciseScore(day);
+  const diet = dietScore(day, target, profile);
+  const exercise = exerciseScore(day, profile);
   const total = totalScore(diet, exercise);
-  return { diet, exercise, total, passed: total >= PASS_SCORE, target, eaten: sumMealKcal(day), burned: sumWorkoutKcal(day) };
+  const eaten = sumMealKcal(day);
+  const minutes = (day?.workouts || []).reduce((s, w) => s + workoutMinutes(w), 0);
+  return {
+    diet, exercise, total, passed: total >= PASS_SCORE, target, eaten, burned: sumWorkoutKcal(day), minutes,
+    over: target ? eaten > target * 1.1 : false,                       // 吃超過
+    under: target ? eaten < target * expectedShare(day?.date) * 0.65 : false, // 到這個時間吃得偏少
+  };
 }
 
 // 分數 → 顏色名稱（對應 app.css 的 --green / --orange / --red）

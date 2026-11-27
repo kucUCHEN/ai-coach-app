@@ -10,7 +10,7 @@ let root = null;
 
 // 字體大小：標準 17px／大 20px。main.js 啟動時也可以呼叫 applyFont() 讓設定一打開就生效。
 export function applyFont(scale = getSettings().fontScale) {
-  document.documentElement.style.setProperty('--font', scale > 1 ? '20px' : '17px');
+  document.documentElement.style.setProperty('--k', scale > 1 ? '1.2' : '1');
 }
 
 export function render(r) {
