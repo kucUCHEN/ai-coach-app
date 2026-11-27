@@ -125,7 +125,7 @@ export function goalPlan(p, goalKg = Number(p?.goalWeightKg) || null) {
   const perWeek = Math.min(0.5, (Math.abs((target ?? tdee) - tdee) * 7) / 7700);
   const weeks = Math.abs(diff) < 0.1 ? 0 : perWeek > 0 ? Math.ceil(Math.abs(diff) / perWeek) : null;
   const done = new Date(); if (weeks) done.setDate(done.getDate() + weeks * 7);
-  return { goalKg, diff, perWeek: Math.round(perWeek * 100) / 100, weeks, when: weeks ? `${done.getFullYear()}/${done.getMonth() + 1}` : '', target, tdee };
+  return { goalKg, diff, perWeek: Math.round(perWeek * 10) / 10, weeks, when: weeks ? `${done.getFullYear()}/${done.getMonth() + 1}` : '', target, tdee };
 }
 
 export function summary() {
@@ -190,8 +190,8 @@ function systemPrompt() {
 export async function chat(messages, { signal } = {}) {
   const lastUser = [...messages].reverse().find((m) => m.role === 'user');
   const lastText = typeof lastUser?.content === 'string' ? lastUser.content : '';
-  if (mustAnswerLocally(lastText)) { last = { demo: isDemo() }; return localAnswer(lastText); }
   if (isDemo()) {
+    if (mustAnswerLocally(lastText)) { last = { demo: true }; return localAnswer(lastText); }
     last = { demo: true, reason: reasonText(demoReasonKind()) };
     return demoReply(lastText);
   }
@@ -435,7 +435,8 @@ export function callScript(profile = store.getProfile(), day = store.getDay()) {
   const g = health.exerciseGoal(profile).minutes;
   const done = s.minutes >= g ? `今天已經運動 ${s.minutes} 分鐘，很棒！` : s.minutes ? `今天已經運動 ${s.minutes} 分鐘，` : '';
   let plan;
-  if (mode === 'child') plan = '今天跳繩 300 下或打球 30 分鐘好不好？做完記得喝水喔 💧';
+  const did = (k, id) => (day?.workouts || []).some((w) => w.activity === k || (id != null && w.exerciseId === id));
+  if (mode === 'child') plan = did('rope', 0) ? '跳繩今天做過了，再去打球或騎腳踏車 30 分鐘好不好？做完記得喝水喔 💧' : did('basketball') ? '今天打過球了，再跳繩 300 下就更棒囉！做完記得喝水 💧' : '今天跳繩 300 下或打球 30 分鐘好不好？做完記得喝水喔 💧';
   else if (mode === 'senior' || hasCond(profile, 'joint')) plan = '今天散步 20 分鐘，再做 10 分鐘椅子操；膝蓋不舒服就休息。';
   else if (mode === 'teen') plan = goal === 'gain' ? '今天打球 30 分鐘，再做深蹲和伏地挺身各 3 組；練完喝一杯牛奶。' : '今天打球或跳繩 30 分鐘，再伸展 5 分鐘。';
   else if (goal === 'lose') plan = '今天快走 30 分鐘＋深蹲 3 組（每組 15 下）。';
@@ -566,6 +567,9 @@ function dataAnswer(t, p, day) {
 }
 
 // 必須在本機回答的（有 key 也不送 AI）：危機、未成年／極端減重
+// 有 API key 時，危機訊息在 AI 回答後一定附上這行（安全網）
+export const HOTLINE = '📞 需要找人聊：1925 安心專線（24 小時）、1995 生命線、1980 張老師；緊急危險請打 119 或 110。';
+
 export function mustAnswerLocally(text, p = store.getProfile()) {
   return isCrisis(text) || (health.isMinor(p) && DIET_RISK.test(text)) || EXTREME.test(text);
 }

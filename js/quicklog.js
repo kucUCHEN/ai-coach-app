@@ -1,6 +1,6 @@
 // 用一句話記錄：「我午餐吃了雞腿便當和珍奶」「晚餐吃了牛肉麵加兩顆滷蛋」「散步30分鐘」「深蹲 5 組」「麻辣燙 600大卡」
 // 原則：寧可不記，也不要亂記。問句只回答不記錄；認不出的食物請使用者補充。
-import { FOODS, guessGroups } from './foods.js';
+import { FOODS, guessGroups, foodGroups } from './foods.js';
 import { EXERCISES } from './sensor/exercises.js';
 import { ACTIVITIES, activityByKey, activityKcal } from './activities.js';
 import { goalsFor, isMinor, ageMode } from './health.js';
@@ -13,9 +13,10 @@ const ALL = [...FOODS, ...EXTRA];
 const ALIAS = {
   '珍珠奶茶': '全糖珍奶', '珍奶': '全糖珍奶', '飯糰': '御飯糰', '青菜': '燙青菜', '高麗菜': '炒高麗菜',
   '白飯': '白飯', '飯': '白飯', '蛋': '水煮蛋', '雞蛋': '水煮蛋', '鮮奶': '牛奶', '優格': '無糖優格',
-  '紅茶拿鐵': '奶茶', '綠茶': '無糖茶', '無糖綠茶': '無糖茶', '烏龍茶': '無糖茶', '粥': '稀飯', '高蛋白': '乳清蛋白', '蛋白粉': '乳清蛋白', '高蛋白飲': '乳清蛋白',
+  '紅茶拿鐵': '奶茶', '綠茶': '無糖茶', '無糖綠茶': '無糖茶', '烏龍茶': '無糖茶', '粥': '稀飯', '乳清': '乳清蛋白', '高蛋白': '乳清蛋白', '蛋白粉': '乳清蛋白', '高蛋白飲': '乳清蛋白',
 };
 const SWEET = { '全糖': '全糖珍奶', '半糖': '半糖珍奶', '少糖': '半糖珍奶', '微糖': '微糖珍奶', '無糖': '無糖珍奶' };
+export const DIET_TALK = /不吃|沒吃飯|減肥|瘦|節食|斷食|減重藥|減肥藥|瀉藥|催吐|吐掉|代餐/;
 const EX_ALIAS = { '跳繩': 0, '開合跳': 1, '深蹲': 2, '啞鈴': 3, '彎舉': 3, '仰臥起坐': 4 };
 const CN = { 一: 1, 二: 2, 兩: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9, 十: 10, 半: 0.5 };
 const UNIT = '顆|碗|杯|個|份|片|塊|盤|條|根|隻|盒|罐|包|支|碟|匙|串|瓶|粒';
@@ -88,6 +89,8 @@ export function parseLog(text) {
   if (g) out.goal = { 增肌: 'gain', 增重: 'gain', 減脂: 'lose', 減重: 'lose', 維持: 'keep' }[g[2]];
 
   if (out.question) return out;
+  // 「不吃晚餐快速瘦」「減肥藥」這類句子不是在報告吃了什麼，不記錄
+  if (DIET_TALK.test(t)) { out.dietTalk = true; return out; }
 
   // ---- 運動 ----
   let rest = t;
@@ -100,11 +103,13 @@ export function parseLog(text) {
       const n = Math.round(cnNum(sets[1]));
       if (n > 0 && n <= 30) out.workouts.push({ exerciseId: exId, sets: n, reps: n * (per ? Number(per[1]) : 10), estimated: !per });
     } else if (reps) out.workouts.push({ exerciseId: exId, reps: Number(reps[1]) });
+    else continue;
   }
   const DUR = new RegExp(`(${NUM}|\\d+)\\s*(個)?\\s*(分鐘|分|小時|鐘頭)`);
   for (const a of ACTIVITIES) {
     const w = a.words.find((x) => t.includes(x));
     if (!w || out.workouts.some((x) => x.activity === a.key)) continue;
+    if ((a.key === 'rope' && out.workouts.some((x) => x.exerciseId === 0)) || (a.key === 'jack' && out.workouts.some((x) => x.exerciseId === 1))) continue;
     const i = t.indexOf(w);
     const m = DUR.exec(t.slice(i)) || DUR.exec(t.slice(0, i));
     if (!m) continue;
@@ -152,7 +157,7 @@ export function applyLog(parsed, profile = null) {
 
   if (foods.length || custom.length) {
     const items = [
-      ...foods.map(({ food, qty }) => ({ name: food.name + fmtQty(qty), emoji: food.emoji, kcal: Math.round(food.kcal * qty), protein: Math.round((food.protein || 0) * qty), groups: [food.group], src: food.name })),
+      ...foods.map(({ food, qty }) => ({ name: food.name + fmtQty(qty), emoji: food.emoji, kcal: Math.round(food.kcal * qty), protein: Math.round((food.protein || 0) * qty), groups: foodGroups(food), src: food.name })),
       ...custom.map((c) => ({ name: c.name, emoji: '🍽️', kcal: c.kcal, protein: undefined, groups: guessGroups(c.name), src: c.name })),
     ];
     const kcal = items.reduce((s, x) => s + x.kcal, 0);
@@ -192,7 +197,7 @@ export function applyLog(parsed, profile = null) {
   const lines = [];
   if (bits.length) lines.push(`✅ 幫你記下來了：${bits.join('、')}`);
   lines.push(...notes);
-  for (const u of unknown) lines.push(`我還不認識「${u}」，可以到飲食頁拍照或手動選擇，或告訴我「${u} 大約 500 大卡」。`);
+  for (const u of unknown) lines.push(`我還不認識「${u}」，這一項沒有記錄。可以到飲食頁拍照或手動選擇，或直接告訴我熱量，例如「${u} ○○ 大卡」。`);
   return { text: lines.join('\n'), logged: bits.length > 0, undo: bits.length ? { date: day?.date, ...undo } : null, topics: [...topics] };
 }
 

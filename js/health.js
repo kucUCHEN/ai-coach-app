@@ -1,6 +1,7 @@
 // 健康計算：BMI、兒童 BMI 判讀、每日熱量、今日評分。
 // 這裡全部是「純函式」：只用傳進來的資料算出答案，不讀寫 localStorage、不碰畫面。
 import { EXERCISES, byId } from './sensor/exercises.js';
+import { guessGroups } from './foods.js';
 
 // ---------- BMI ----------
 // BMI = 體重(公斤) ÷ 身高(公尺)²，回傳到小數第 1 位
@@ -191,13 +192,18 @@ export function dietScore(day, target, profile) {
   const goal = profile ? effectiveGoal(profile) : 'keep';
   const overPct = eaten / target - 1;
   const overW = goal === 'lose' ? 4 : goal === 'gain' ? 1.5 : 2.5;
-  const over = Math.max(0, overPct - 0.10) * 100 * overW;
+  const over = Math.max(0, overPct - 0.05) * 100 * overW;
   const share = expectedShare(day.date);
   const underPct = 1 - eaten / (target * share);
   const underW = goal === 'gain' ? 2.5 : 1.5;
   const under = share < 1 ? Math.max(0, underPct - 0.35) * 100 * underW : Math.max(0, underPct - 0.15) * 100 * underW;
-  return clamp(Math.round(100 - over - under));
+  // 餐盤均衡：五大類（全穀、蔬菜、水果、豆魚蛋肉、乳品）每缺一類扣分；白天扣得少，一天結束時扣得多
+  const got = new Set(day.meals.flatMap((m) => m.groups || guessGroups(m.name)));
+  const missing = MAIN_GROUPS.filter((g) => !got.has(g)).length;
+  const balance = missing * (share < 1 ? 3 : 5);
+  return clamp(Math.round(100 - over - under - balance));
 }
+export const MAIN_GROUPS = ['全穀', '蔬菜', '水果', '豆魚蛋肉', '乳品'];
 
 // 每天的運動目標：一共約 30 分鐘（次數型以 20 次 ≈ 1 分鐘換算），至少 1 項
 export function exerciseGoal(p) {

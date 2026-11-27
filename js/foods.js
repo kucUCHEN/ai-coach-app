@@ -13,10 +13,10 @@ export const FOODS = [
   // 全穀
   { name: '白飯',     emoji: '🍚', unit: '一碗',   kcal: 280, group: '全穀', protein: 5 },
   { name: '糙米飯',   emoji: '🍚', unit: '一碗',   kcal: 260, group: '全穀', protein: 5 },
-  { name: '滷肉飯',   emoji: '🍛', unit: '一碗',   kcal: 450, group: '全穀', protein: 12 },
-  { name: '雞腿便當', emoji: '🍱', unit: '一個',   kcal: 800, group: '全穀', protein: 35 },
-  { name: '炒飯',     emoji: '🍳', unit: '一盤',   kcal: 650, group: '全穀', protein: 15 },
-  { name: '水餃',     emoji: '🥟', unit: '10 顆',  kcal: 500, group: '全穀', protein: 20 },
+  { name: '滷肉飯',   emoji: '🍛', unit: '一碗',   kcal: 450, group: '全穀', protein: 12, groups: ['全穀', '豆魚蛋肉'] },
+  { name: '雞腿便當', emoji: '🍱', unit: '一個',   kcal: 800, group: '全穀', protein: 35, groups: ['全穀', '豆魚蛋肉', '蔬菜'] },
+  { name: '炒飯',     emoji: '🍳', unit: '一盤',   kcal: 650, group: '全穀', protein: 15, groups: ['全穀', '豆魚蛋肉'] },
+  { name: '水餃',     emoji: '🥟', unit: '10 顆',  kcal: 500, group: '全穀', protein: 20, groups: ['全穀', '豆魚蛋肉', '蔬菜'] },
   { name: '陽春麵',   emoji: '🍜', unit: '一碗',   kcal: 350, group: '全穀', protein: 10 },
   { name: '吐司',     emoji: '🍞', unit: '一片',   kcal: 90,  group: '全穀', protein: 3 },
   { name: '菠蘿麵包', emoji: '🥐', unit: '一個',   kcal: 350, group: '全穀', protein: 6 },
@@ -50,7 +50,7 @@ export const FOODS = [
   { name: '優酪乳',   emoji: '🥛', unit: '一瓶',   kcal: 160, group: '乳品', protein: 5 },
   { name: '起司片',   emoji: '🧀', unit: '一片',   kcal: 60,  group: '乳品', protein: 4 },
   // 點心（偶爾吃就好）
-  { name: '全糖珍奶', emoji: '🧋', unit: '一杯',   kcal: 650, group: '點心', protein: 4 },
+  { name: '全糖珍奶', emoji: '🧋', unit: '一杯',   kcal: 650, group: '點心', protein: 4, groups: ['點心', '乳品'] },
   { name: '炸雞',     emoji: '🍗', unit: '一塊',   kcal: 350, group: '點心', protein: 15 },
   { name: '薯條',     emoji: '🍟', unit: '中份',   kcal: 330, group: '點心', protein: 4 },
   { name: '雞排',     emoji: '🍖', unit: '一片',   kcal: 600, group: '點心', protein: 30 },
@@ -59,16 +59,16 @@ export const FOODS = [
   { name: '巧克力',   emoji: '🍫', unit: '一條',   kcal: 230, group: '點心', protein: 3 },
   { name: '冰淇淋',   emoji: '🍦', unit: '一支',   kcal: 200, group: '點心', protein: 3 },
   // ---- 常見外食與飲料（11/27 依使用者測試補充）----
-  { name: '蛋餅',       emoji: '🌯', unit: '一份',   kcal: 280, group: '全穀', protein: 10 },
+  { name: '蛋餅',       emoji: '🌯', unit: '一份',   kcal: 280, group: '全穀', protein: 10, groups: ['全穀', '豆魚蛋肉'] },
   { name: '燕麥粥',     emoji: '🥣', unit: '一碗',   kcal: 160, group: '全穀', protein: 6 },
   { name: '稀飯',       emoji: '🍚', unit: '一碗',   kcal: 140, group: '全穀', protein: 3 },
   { name: '地瓜粥',     emoji: '🍠', unit: '一碗',   kcal: 170, group: '全穀', protein: 3 },
-  { name: '牛肉麵',     emoji: '🍜', unit: '一碗',   kcal: 650, group: '全穀', protein: 30 },
-  { name: '排骨便當',   emoji: '🍱', unit: '一個',   kcal: 850, group: '全穀', protein: 30 },
-  { name: '控肉便當',   emoji: '🍱', unit: '一個',   kcal: 950, group: '全穀', protein: 28 },
-  { name: '鍋貼',       emoji: '🥟', unit: '10 個',  kcal: 550, group: '全穀', protein: 18 },
-  { name: '三明治',     emoji: '🥪', unit: '一個',   kcal: 300, group: '全穀', protein: 12 },
-  { name: '漢堡',       emoji: '🍔', unit: '一個',   kcal: 450, group: '全穀', protein: 20 },
+  { name: '牛肉麵',     emoji: '🍜', unit: '一碗',   kcal: 650, group: '全穀', protein: 30, groups: ['全穀', '豆魚蛋肉', '蔬菜'] },
+  { name: '排骨便當',   emoji: '🍱', unit: '一個',   kcal: 850, group: '全穀', protein: 30, groups: ['全穀', '豆魚蛋肉', '蔬菜'] },
+  { name: '控肉便當',   emoji: '🍱', unit: '一個',   kcal: 950, group: '全穀', protein: 28, groups: ['全穀', '豆魚蛋肉', '蔬菜'] },
+  { name: '鍋貼',       emoji: '🥟', unit: '10 個',  kcal: 550, group: '全穀', protein: 18, groups: ['全穀', '豆魚蛋肉', '蔬菜'] },
+  { name: '三明治',     emoji: '🥪', unit: '一個',   kcal: 300, group: '全穀', protein: 12, groups: ['全穀', '豆魚蛋肉'] },
+  { name: '漢堡',       emoji: '🍔', unit: '一個',   kcal: 450, group: '全穀', protein: 20, groups: ['全穀', '豆魚蛋肉'] },
   { name: '沙拉',       emoji: '🥗', unit: '一盒',   kcal: 150, group: '蔬菜', protein: 5 },
   { name: '滷蛋',       emoji: '🥚', unit: '一顆',   kcal: 80,  group: '豆魚蛋肉', protein: 7 },
   { name: '雞胸肉',     emoji: '🍗', unit: '一片',   kcal: 165, group: '豆魚蛋肉', protein: 31 },
@@ -76,13 +76,16 @@ export const FOODS = [
   { name: '鮭魚',       emoji: '🐟', unit: '一片',   kcal: 230, group: '豆魚蛋肉', protein: 22 },
   { name: '乳清蛋白',   emoji: '🥤', unit: '一匙',   kcal: 120, group: '豆魚蛋肉', protein: 24 },
   { name: '無糖優格',   emoji: '🥛', unit: '一杯',   kcal: 100, group: '乳品', protein: 8 },
-  { name: '半糖珍奶',   emoji: '🧋', unit: '一杯',   kcal: 500, group: '點心', protein: 4 },
-  { name: '微糖珍奶',   emoji: '🧋', unit: '一杯',   kcal: 420, group: '點心', protein: 4 },
+  { name: '半糖珍奶',   emoji: '🧋', unit: '一杯',   kcal: 500, group: '點心', protein: 4, groups: ['點心', '乳品'] },
+  { name: '微糖珍奶',   emoji: '🧋', unit: '一杯',   kcal: 420, group: '點心', protein: 4, groups: ['點心', '乳品'] },
   { name: '奶茶',       emoji: '🧋', unit: '一杯',   kcal: 300, group: '點心', protein: 3 },
   { name: '大冰奶',     emoji: '🥛', unit: '一杯',   kcal: 350, group: '點心', protein: 6 },
   { name: '無糖茶',     emoji: '🍵', unit: '一杯',   kcal: 0,   group: '點心', protein: 0 },
   { name: '鹽酥雞',     emoji: '🍗', unit: '一份',   kcal: 550, group: '點心', protein: 25 },
   { name: '蛋糕',       emoji: '🍰', unit: '一塊',   kcal: 350, group: '點心', protein: 5 },
+  { name: '雞胸肉便當', emoji: '🍱', unit: '一個',   kcal: 650, group: '全穀', protein: 45, groups: ['全穀', '豆魚蛋肉', '蔬菜'] },
+  { name: '茶葉蛋',     emoji: '🥚', unit: '一顆',   kcal: 75,  group: '豆魚蛋肉', protein: 7 },
+  { name: '拿鐵',       emoji: '☕', unit: '一杯',   kcal: 180, group: '乳品', protein: 9 },
   { name: '醬菜',       emoji: '🥒', unit: '一小碟', kcal: 30,  group: '蔬菜', protein: 1 },
 ];
 
@@ -98,9 +101,11 @@ const HINTS = {
   '乳品': ['牛奶', '鮮奶', '優格', '優酪', '起司', '乳酪'],
   '點心': ['珍奶', '奶茶', '炸', '薯條', '可樂', '汽水', '洋芋片', '巧克力', '冰淇淋', '蛋糕', '餅乾', '糖'],
 };
+// 一項食物屬於哪些類（便當等複合餐點有多類）
+export const foodGroups = (f) => (f?.groups || (f?.group ? [f.group] : []));
 export function guessGroups(name) {
   const exact = FOODS.find((f) => f.name === name);
-  if (exact) return [exact.group];
+  if (exact) return foodGroups(exact);
   const s = String(name || '');
   return Object.keys(HINTS).filter((g) => HINTS[g].some((k) => s.includes(k)));
 }

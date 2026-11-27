@@ -81,7 +81,7 @@ function energyCard(p, bmr, tdee, target) {
   return h('div', { class: 'card' },
     h('h2', {}, '🔥 每天需要多少熱量？'),
     step('🛌', '基礎代謝 BMR', bmr, '就算整天躺著不動，心跳、呼吸、維持體溫也要用掉的熱量'),
-    step('🚶', '每日總消耗 TDEE', tdee, `加上走路、上課、運動等活動後，一天大約用掉的熱量（活動量「${act.label}」× ${act.factor}）`),
+    step('🚶', '每日總消耗 TDEE', tdee, `加上走路、${ageMode(p) === 'teen' ? '上課' : ageMode(p) === 'senior' ? '做家事' : '工作'}、運動等活動後，一天大約用掉的熱量（活動量「${act.label}」× ${act.factor}）`),
     step('🎯', '每日建議攝取', target, targetNote),
     mode === 'teen' && goal === 'gain' ? h('p', { class: 'small' }, '💪 成長期增肌：吃足熱量與蛋白質、搭配阻力訓練（深蹲、伏地挺身、彈力帶）、睡飽 8–10 小時。') : '',
     mode === 'teen' ? h('p', { class: 'muted small' }, '🌱 未滿 18 歲仍在成長，不建議節食或刻意減重。') : '',

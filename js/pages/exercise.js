@@ -100,6 +100,9 @@ async function connect() {
 }
 
 // ---------- 選運動 ----------
+const HIGH_IMPACT = new Set([0, 1]); // 跳繩、開合跳
+const REP_MAX = { 0: 3000, 1: 500, 2: 300, 3: 300, 4: 300 }; // 單次記錄的合理上限
+function gentleUser() { const p = getProfile() || {}; return ageMode(p) === 'senior' || (p.conditions || []).includes('joint'); }
 function drawChips() {
   if (!els.chips) return;
   els.chips.replaceChildren(...EXERCISES.map((e) =>
@@ -107,11 +110,13 @@ function drawChips() {
       onclick: () => {
         Object.assign(state, { exId: e.id, reps: 0, quality: 0, stars: 0, celebrated: false });
         if (els.manualEx) els.manualEx.value = String(e.id);
+        els.setManualKind?.('reps');
         drawChips(); drawRing(); drawGoal();
       } },
-      `${e.emoji} ${e.name}`)));
+      `${e.emoji} ${e.name}${gentleUser() && HIGH_IMPACT.has(e.id) ? ' ⚠️' : ''}`)));
   const ex = byId(state.exId);
-  els.where.replaceChildren(`感測器配戴位置：${ex.where}　今天目標 ${ex.goal} 次`);
+  els.where.replaceChildren(`感測器配戴位置：${ex.where}　今天目標 ${ex.goal} 次`,
+    gentleUser() && HIGH_IMPACT.has(ex.id) ? h('div', { class: 'warn-text small' }, '⚠️ 這是高衝擊運動，膝蓋或關節不適時建議改做深蹲（扶椅子、蹲淺一點），或用下方「算分鐘」記錄散步、太極。') : '');
 }
 
 // ---------- 大圓環 ----------
@@ -258,11 +263,12 @@ function manualCard() {
     tabR.setAttribute('aria-pressed', k === 'reps'); tabM.setAttribute('aria-pressed', k === 'min');
   }
   setKind(kind);
+  els.setManualKind = setKind;
 
   const save = () => {
     err.hidden = true;
     if (kind === 'reps') {
-      const r = readInt(reps, 1, 1000, '次數'); if (r.err) return fail(r.err);
+      const r = readInt(reps, 1, REP_MAX[Number(exSel.value)] || 1000, '次數'); if (r.err) return fail(r.err);
       let s = null;
       if (String(sets.value).trim() !== '') { const q = readInt(sets, 1, 20, '組數'); if (q.err) return fail(q.err); s = q.n; }
       const ex = byId(exSel.value);

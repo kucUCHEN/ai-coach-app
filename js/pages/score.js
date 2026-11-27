@@ -2,6 +2,7 @@
 import { h, toast, askAdmin } from '../ui.js';
 import { getProfile, getDay, getRewards, setRewards, getWeights, listDays, todayKey } from '../store.js';
 import { scoreDay, PASS_SCORE, isMinor, workoutMinutes } from '../health.js';
+import { dailyTarget } from '../health.js';
 import { needProfile } from './food.js';
 import { mascot, moodOf } from '../mascot.js';
 import { guessGroups } from '../foods.js';
@@ -13,7 +14,7 @@ let aiMod = null;
 export async function render(r) {
   root = r; alive = true;
   const p = getProfile();
-  if (!p) { root.replaceChildren(needProfile('先建立基本資料，才能計算每日評分。')); return; }
+  if (!p || !dailyTarget(p)) { root.replaceChildren(needProfile(p ? '基本資料還缺年齡或身高，補齊後才能計算每日評分。' : '先建立基本資料，才能計算每日評分。')); return; }
   try { aiMod = await import('../ai/index.js'); } catch (e) { console.warn('AI 模組載入失敗', e); }
   if (!alive) return;
   draw(p);

@@ -132,8 +132,9 @@ export function render(root) {
     micSay('');
     let chat = addMsg('user', text);
 
-    // 危機：固定回覆，不記錄任何東西、不接其他建議
-    if (ai.isCrisis(text)) {
+    // 危機（示範模式）：固定回覆；有 API key 時交給 AI 回答，再附上求助專線
+    const crisis = ai.isCrisis(text);
+    if (crisis && ai.isDemo()) {
       addMsg('assistant', ai.crisisReply(store.getProfile()));
       drawChat();
       return;
@@ -185,15 +186,14 @@ export function render(root) {
     let reply = '';
     try {
       const local = ai.localAnswer(text, profile, store.getDay());
-      if (ai.mustAnswerLocally(text, profile)) reply = [localReply, local].filter(Boolean).join('\n');
-      else if (ai.isDemo()) {
+      if (ai.isDemo()) {
         if (local) reply = [localReply, local].filter(Boolean).join('\n');
         else if (log.logged) reply = localReply + '\n' + ai.logTip(log.topics, profile, store.getDay());
         else if (localReply) reply = localReply + (Object.keys(found).length ? ' 我會依照這些資料給你建議。' : '');
         else reply = ai.demoReply(text);
       } else {
         const r = await ai.chat(chat.map((m) => ({ role: m.role, content: m.content })), { signal: controller.signal });
-        reply = [localReply, r].filter(Boolean).join('\n');
+        reply = [crisis ? '' : localReply, r, crisis ? ai.HOTLINE : ''].filter(Boolean).join('\n');
       }
     } catch {
       reply = [localReply, ai.demoReply(text)].filter(Boolean).join('\n');

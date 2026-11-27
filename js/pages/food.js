@@ -4,6 +4,7 @@ import { icon } from '../icons.js';
 import { getProfile, getDay, updateDay, listDays } from '../store.js';
 import { dailyTarget, sumMealKcal, ageMode, proteinTarget, effectiveGoal } from '../health.js';
 import { FOODS, GROUPS, foodsIn, guessGroups, mealProtein } from '../foods.js';
+import { foodGroups } from '../foods.js';
 import { ACTIVITIES, activityKcal } from '../activities.js';
 
 let root = null;
@@ -24,7 +25,7 @@ async function loadAI() {
 export async function render(r) {
   root = r; alive = true; editingId = null;
   const p = getProfile();
-  if (!p) { root.replaceChildren(needProfile()); return; }
+  if (!p || !dailyTarget(p)) { root.replaceChildren(needProfile(p ? '基本資料還缺年齡或身高，補齊後才能計算每日建議熱量。' : undefined)); return; }
   await loadAI();
   if (!alive) return;
   summaryEl = h('div'); recentEl = h('div'); mealEl = h('div'); swapEl = h('div');
@@ -276,7 +277,8 @@ function recentRow() {
     h('div', { class: 'chip-scroll' }, [...seen.values()].map((m) => {
       const b = h('button', { class: 'chip', title: m.name, onclick: () => {
         const now = Date.now();
-        if (now - (lastTap.get(m.name) || 0) < 1500) return;
+        if (now - (lastTap.get(m.name) || 0) < 3000 || now - (lastTap.get('*') || 0) < 800) return;
+        lastTap.set('*', now);
         lastTap.set(m.name, now);
         b.disabled = true;
         addMeal({ name: m.name, kcal: m.kcal, protein: Number.isFinite(m.protein) ? m.protein : undefined, items: m.items, groups: m.groups }, { undo: true });
@@ -328,7 +330,7 @@ function fillManual(box) {
         h('button', { class: 'btn grow', onclick: () => {
           addMeal({
             name: qty === 1 ? `${f.name} ${f.unit}` : `${f.name} ${f.unit} ×${qty}`,
-            kcal: Math.round(f.kcal * qty), protein: round1((f.protein || 0) * qty), groups: [f.group],
+            kcal: Math.round(f.kcal * qty), protein: round1((f.protein || 0) * qty), groups: foodGroups(f),
           });
           selected = null; picker.replaceChildren(); drawList();
         } }, '加入'),

@@ -10,6 +10,8 @@ export const ACTIVITIES = [
   { key: 'taichi',    name: '太極拳',     emoji: '🧘', met: 3.0, impact: 'low',  words: ['太極'] },
   { key: 'stretch',   name: '伸展／椅子操', emoji: '🪑', met: 2.3, impact: 'low',  words: ['伸展', '拉筋', '椅子操', '瑜珈', '瑜伽'] },
   { key: 'dance',     name: '跳舞／韻律操', emoji: '💃', met: 5.0, impact: 'low',  words: ['跳舞', '韻律', '土風舞', '有氧'] },
+  { key: 'rope',      name: '跳繩',       emoji: '🪢', met: 10.0, impact: 'high', words: ['跳繩'] },
+  { key: 'jack',      name: '開合跳',     emoji: '🤸', met: 8.0, impact: 'high', words: ['開合跳'] },
   { key: 'basketball',name: '籃球',       emoji: '🏀', met: 6.5, impact: 'high', words: ['籃球', '打球'] },
   { key: 'badminton', name: '羽球',       emoji: '🏸', met: 5.5, impact: 'high', words: ['羽球', '羽毛球'] },
   { key: 'weights',   name: '重量訓練',   emoji: '🏋️', met: 5.0, impact: 'low',  words: ['重訓', '重量訓練', '健身'] },
