@@ -262,7 +262,7 @@ function manualCard() {
     value: gentle ? '散步' : '' });
   const datalist = h('datalist', { id: listId }, acts.map((a) => h('option', { value: a.name })));
   const minutes = h('input', { type: 'number', inputmode: 'numeric', min: '1', max: '300', step: '1', placeholder: '分鐘', 'aria-label': '分鐘' });
-  const kcalIn = h('input', { type: 'number', inputmode: 'numeric', min: '0', max: '3000', step: '1', placeholder: '消耗熱量（可不填）', 'aria-label': '消耗熱量' });
+  const kcalIn = h('input', { type: 'number', inputmode: 'numeric', min: '0', max: '3000', step: '1', placeholder: '熱量(可不填)', 'aria-label': '消耗熱量' });
   const chipRow = h('div', { class: 'chip-scroll' }, acts.slice(0, 8).map((a) =>
     h('button', { class: 'chip', type: 'button', onclick: () => { actName.value = a.name; minutes.focus(); } },
       `${a.emoji} ${a.name}${gentle && a.impact === 'high' ? ' ⚠️' : ''}`)));
