@@ -60,9 +60,10 @@ export function askAdmin(reason = '這個動作需要家長或老師確認。') 
 }
 
 // 模擬來電：網頁 App 不能真的打電話，所以做一個「教練來電」畫面。接聽後進入「通話中」，掛斷才呼叫 onAccept。
-export function incomingCall({ title = '教練小健', message = '運動時間到了。', onAccept } = {}) {
-  let timer = null;
-  const close = () => { clearInterval(timer); try { speechSynthesis.cancel(); } catch {} overlay.remove(); };
+export function incomingCall({ title = '教練小健', message = '運動時間到了。', onAccept, live = false, opener, converse } = {}) {
+  let timer = null, recog = null, ended = false;
+  const transcript = [];   // [{role, content}]
+  const close = () => { ended = true; clearInterval(timer); try { recog?.abort(); } catch {} try { speechSynthesis.cancel(); } catch {} overlay.remove(); };
   const ringing = [
     mascot('cheer', 'call-avatar'),
     h('div', { class: 'call-title' }, title),
@@ -78,17 +79,72 @@ export function incomingCall({ title = '教練小健', message = '運動時間�
     const clock = h('div', { class: 'call-sub call-timer' }, '00:00');
     timer = setInterval(() => { sec++; clock.textContent = `${String(Math.floor(sec / 60)).padStart(2, '0')}:${String(sec % 60).padStart(2, '0')}`; }, 1000);
     overlay.classList.add('in-call');
-    overlay.replaceChildren(
-      mascot('cheer', 'call-avatar still'),
-      h('div', { class: 'call-title' }, title),
-      clock,
-      h('div', { class: 'call-message' }, message),
-      h('button', { class: 'call-end', type: 'button', onclick: () => { close(); onAccept?.(message); } }, icon('phone'), h('span', {}, '結束通話')),
-    );
-    speak(message);
+    const msgEl = h('div', { class: 'call-message' }, live ? '接通中…' : message);
+    const status = h('div', { class: 'call-status' });
+    const endCall = () => {
+      const said = transcript.length ? transcript.map((m) => (m.role === 'user' ? '你：' : '小健：') + m.content).join('\n') : message;
+      close(); onAccept?.(live && transcript.length ? `📞 通話紀錄\n${said}` : message);
+    };
+    const parts = [mascot('cheer', 'call-avatar still'), h('div', { class: 'call-title' }, title), clock, msgEl, status];
+    // 真的對話：說話按鈕＋打字備案
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const talkBtn = h('button', { class: 'call-talk', type: 'button', onclick: () => listen() }, icon('mic'), h('span', {}, '按一下說話'));
+    const typeIn = h('input', { type: 'text', class: 'call-type', placeholder: '也可以打字回覆', enterkeyhint: 'send', maxlength: '200' });
+    const typeForm = h('form', { class: 'call-type-row', onsubmit: (e) => { e.preventDefault(); const t = typeIn.value.trim(); typeIn.value = ''; if (t) userSaid(t); } }, typeIn);
+    if (live) parts.push(SR ? talkBtn : '', typeForm);
+    parts.push(h('button', { class: 'call-end', type: 'button', onclick: endCall }, icon('phone'), h('span', {}, '結束通話')));
+    overlay.replaceChildren(...parts);
+
+    async function coachSays(text) {
+      if (ended) return;
+      transcript.push({ role: 'assistant', content: text });
+      msgEl.textContent = text;
+      status.textContent = '';
+      await speakAsync(text);
+      if (!ended && live && SR) listen();   // 說完自動聽使用者回答
+    }
+    async function userSaid(text) {
+      if (ended) return;
+      transcript.push({ role: 'user', content: text });
+      msgEl.textContent = '你：' + text;
+      status.textContent = '小健正在想…';
+      if (/掛了|再見|拜拜|先這樣|bye/i.test(text) && transcript.length > 2) { await coachSays('好，那我們下次再聊，記得照計畫動一動喔，再見！'); setTimeout(endCall, 400); return; }
+      try { await coachSays(await converse(transcript)); } catch { status.textContent = '連線不穩，請再說一次'; }
+    }
+    function listen() {
+      if (!SR || ended || recog) return;
+      try {
+        recog = new SR(); recog.lang = 'zh-TW'; recog.interimResults = false;
+        status.textContent = '🎙️ 請說話…';
+        talkBtn.classList.add('listening');
+        let got = '';
+        recog.onresult = (e) => { got = e.results[0][0].transcript; };
+        recog.onerror = () => { status.textContent = '沒聽清楚，按「說話」再試一次，或用打字'; };
+        recog.onend = () => { recog = null; talkBtn.classList.remove('listening'); if (got.trim()) userSaid(got.trim()); else if (!ended && status.textContent === '🎙️ 請說話…') status.textContent = '按「說話」回答小健，或用打字'; };
+        recog.start();
+      } catch { recog = null; status.textContent = '這支手機不能用語音，請用打字回覆'; }
+    }
+    if (live) {
+      opener().then((t) => coachSays(t || message)).catch(() => coachSays(message));
+    } else speak(message);
   }
   document.body.append(overlay);
   try { navigator.vibrate?.([400, 200, 400]); } catch {}
+}
+
+// 念完才繼續（通話用）
+export function speakAsync(text) {
+  return new Promise((resolve) => {
+    try {
+      if (!('speechSynthesis' in window)) return resolve();
+      speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(String(text).replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/gu, ''));
+      u.lang = 'zh-TW'; u.rate = 1;
+      u.onend = u.onerror = () => resolve();
+      speechSynthesis.speak(u);
+      setTimeout(resolve, 20000); // 保險：最多等 20 秒
+    } catch { resolve(); }
+  });
 }
 
 // 用手機內建的語音念出來（不需要網路）

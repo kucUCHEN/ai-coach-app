@@ -170,3 +170,6 @@ label { display: block; font-size: calc(15px * var(--k)); font-weight: 600; colo
 /* 家長確認 */
 .modal-overlay { position: fixed; inset: 0; z-index: 210; background: rgba(0,0,0,.45); display: grid; place-items: center; padding: 16px; }
 .modal-overlay .modal { width: min(360px, 100%); margin: 0; }
+
+/* 教練在正中間，圖示稍微大一點 */
+.tabbar a[data-route="coach"] svg.icon { width: 28px; height: 28px; }

@@ -62,11 +62,10 @@ function callCard() {
   return h('div', { class: 'card row between' },
     h('div', {}, h('div', { class: 'bold' }, '教練來電'), h('div', { class: 'muted small' }, '到了運動時間，以來電畫面提醒。')),
     h('button', { class: 'btn ghost', onclick: () => {
-      setTimeout(() => incomingCall({
-        title: '教練小健',
-        message: '運動時間到了。今天可以做 20 分鐘的跳繩或快走，結束後記得補充水分。',
-        onAccept: () => toast('運動時間到了'),
-      }), 600);
+      import('../ai/index.js').then((ai) => setTimeout(() => incomingCall({
+        ...ai.callOptions(),
+        onAccept: () => toast('通話結束'),
+      }), 600));
     } }, '試用'),
   );
 }

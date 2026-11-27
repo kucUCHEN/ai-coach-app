@@ -171,6 +171,15 @@ export function render(root) {
     // 一句話記錄飲食或運動（問句不記錄）
     const log = applyLog(parsed, store.getProfile());
     if (log.text) pre.push(log.text);
+    // 不在清單裡的運動（爬山、網球…）：請 AI 估算消耗熱量，再更新紀錄
+    if (log.pending && log.undo) {
+      const ids = new Set(log.undo.workouts);
+      for (const w of store.getDay().workouts.filter((x) => ids.has(x.id) && x.estimating)) {
+        const est = await ai.estimateExercise({ name: w.name, minutes: w.minutes });
+        store.updateDay((d) => { const r = d.workouts.find((x) => x.id === w.id); if (r) { r.kcal = est.kcal; delete r.estimating; r.note = est.note; } });
+        pre.push(`🔥 ${w.name} ${w.minutes} 分鐘，${est.demo ? '估計' : 'AI 估算'}約消耗 ${Math.round(est.kcal)} 大卡（${est.note}）。`);
+      }
+    }
     const localReply = pre.join('\n');
     profile = store.getProfile();
 
@@ -265,9 +274,9 @@ export function render(root) {
         ),
         greetText,
         h('button', { class: 'btn ghost block coach-call', type: 'button', onclick: () => incomingCall({
-          title: '教練小健', message: ai.callScript(store.getProfile(), store.getDay()),
+          ...ai.callOptions(store.getProfile(), store.getDay()),
           onAccept: (msg) => { addMsg('assistant', msg); drawChat(); },
-        }) }, icon('phone'), '模擬來電提醒'),
+        }) }, icon('phone'), ai.isDemo() ? '模擬來電提醒' : '教練來電（語音對話）'),
       ),
       list,
       h('p', { class: 'fine center' }, 'AI 建議僅供參考，不能取代醫療診斷。身體不適請就醫。'),

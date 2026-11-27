@@ -187,7 +187,7 @@ function systemPrompt() {
 
 // ---------- 對話 ----------
 // messages: [{role:'user'|'assistant', content:string}]
-export async function chat(messages, { signal } = {}) {
+export async function chat(messages, { signal, call = false } = {}) {
   const lastUser = [...messages].reverse().find((m) => m.role === 'user');
   const lastText = typeof lastUser?.content === 'string' ? lastUser.content : '';
   if (isDemo()) {
@@ -206,7 +206,7 @@ export async function chat(messages, { signal } = {}) {
   if (!msgs.length) msgs = [{ role: 'user', content: '你好' }];
   try {
     const text = await PROVIDERS[c.provider].call({
-      key: c.keys[c.provider], model: c.model, system: systemPrompt(), messages: msgs, maxTokens: 600, signal,
+      key: c.keys[c.provider], model: c.model, system: systemPrompt() + (call ? CALL_RULE : ''), messages: msgs, maxTokens: call ? 250 : 600, signal,
     });
     last = { demo: false };
     recordUse('chat', c.model);
@@ -217,6 +217,20 @@ export async function chat(messages, { signal } = {}) {
     if (kind === 'abort') return '';
     return demoReply(lastText) + `\n（示範回覆：${reasonText(kind)}）`;
   }
+}
+
+// ---------- 教練來電：有 API key 時是真正的語音對話 ----------
+const CALL_RULE = '\n\n【現在是電話通話】你主動打電話給使用者。用口語、每次只說 1 到 2 句短句，不用表情符號、不用條列，像真人講電話一樣，說完可以問對方一個問題。對方說要掛電話時，簡短道別。';
+const CALL_OPENER = '（系統：你現在撥電話給使用者。請先打招呼，再依今天的飲食與運動紀錄，提醒一件最重要的事，並建議一個今天可以做的運動，最後問對方要不要做。）';
+// 回傳給 ui.incomingCall 用的設定：demo 時只念一段固定提醒；有 key 時 opener/converse 會呼叫 AI
+export function callOptions(profile = store.getProfile(), day = store.getDay()) {
+  const message = callScript(profile, day);
+  if (isDemo()) return { title: '教練小健', message, live: false };
+  return {
+    title: '教練小健', message, live: true,
+    opener: () => chat([{ role: 'user', content: CALL_OPENER }], { call: true }),
+    converse: (history) => chat([{ role: 'user', content: CALL_OPENER }, ...history], { call: true }),
+  };
 }
 
 // 老師設定頁「測試連線」用：回傳 {ok, text?, reason?}
@@ -335,6 +349,51 @@ export async function estimateFood(dataUrl, { signal } = {}) {
     const kind = friendlyKind(e, signal);
     last = { demo: true, reason: reasonText(kind), kind };
     return { ...structuredClone(DEMO_FOOD), advice: demoAdvice(), demo: true, reason: reasonText(kind) };
+  }
+}
+
+// ---------- AI 估算運動消耗（任何運動都可以）----------
+const EX_SCHEMA = {
+  type: 'object',
+  properties: { name: { type: 'string' }, minutes: { type: 'number' }, kcal: { type: 'number' }, met: { type: 'number' }, note: { type: 'string' } },
+  required: ['name', 'minutes', 'kcal', 'met', 'note'],
+  additionalProperties: false,
+};
+// 沒有 key 時的估算：認得的運動用它的強度（MET），不認得的用中等強度 4
+export function exerciseFallback({ name = '', minutes = 0, reps = 0, sets = 0 } = {}, p = store.getProfile()) {
+  const kg = Number(p?.weightKg) || 60;
+  const a = ACTIVITIES.find((x) => x.name === name || x.words.some((w) => name.includes(w)));
+  const met = a ? a.met : 4;
+  const mins = minutes || Math.max(1, Math.round(((reps || 0) * (sets || 1)) / 20));
+  return { name, minutes: mins, met, kcal: Math.round(met * kg * (mins / 60) * 10) / 10, demo: true,
+    note: a ? `以「${a.name}」的強度估算` : '以中等強度估算，數字可以自己修改' };
+}
+export async function estimateExercise(input, { signal } = {}) {
+  const p = store.getProfile();
+  if (isDemo() || overLimit('chat')) return exerciseFallback(input, p);
+  const c = getConfig();
+  const kg = Number(p?.weightKg) || 60;
+  const prompt = [
+    `使用者資料：${p?.age ? p.age + ' 歲' : '年齡未知'}、${p?.sex === 'F' ? '女' : p?.sex === 'M' ? '男' : '性別未知'}、體重 ${kg} 公斤。`,
+    `運動：${input.name || '未說明'}${input.minutes ? `，${input.minutes} 分鐘` : ''}${input.reps ? `，${input.reps} 次` : ''}${input.sets ? `，${input.sets} 組` : ''}。`,
+    '請依 Compendium of Physical Activities 的 MET 值估計這次運動的消耗熱量（大卡）＝ MET × 體重(kg) × 小時。',
+    '只有次數沒有時間時，請合理估計所需分鐘數。name 請填簡短的運動名稱（繁體中文）。note 用一句話說明估算依據，不用表情符號。',
+    '只回 JSON：{"name":"爬山","minutes":120,"kcal":600,"met":6,"note":"..."}',
+  ].join('\n');
+  try {
+    const text = await PROVIDERS[c.provider].call({
+      key: c.keys[c.provider], model: c.model,
+      system: '你是估算運動消耗熱量的 AI 健康教練，估計值僅供參考。只輸出 JSON。',
+      messages: [{ role: 'user', content: prompt }], schema: EX_SCHEMA, maxTokens: 300, signal,
+    });
+    const s = String(text || '').replace(/```(?:json)?/gi, '');
+    const o = JSON.parse(s.slice(s.indexOf('{'), s.lastIndexOf('}') + 1));
+    const kcal = Math.round(Number(o.kcal) * 10) / 10;
+    if (!(kcal >= 0 && kcal <= 3000)) throw new Error('range');
+    recordUse('chat', c.model);
+    return { name: String(o.name || input.name || '運動').slice(0, 20), minutes: Math.round(Number(o.minutes) || input.minutes || 0), kcal, met: Number(o.met) || null, note: String(o.note || '').slice(0, 80) };
+  } catch {
+    return exerciseFallback(input, p);
   }
 }
 

@@ -26,3 +26,7 @@
 .del-btn { flex: none; width: 36px; height: 36px; border: 0; border-radius: 50%; background: transparent;
   color: var(--muted, #888); font-size: calc(20px * var(--k)); cursor: pointer; }
 .del-btn:hover, .del-btn:focus-visible { background: var(--surface); color: #c0352b; }
+
+/* 自訂目標次數 */
+.goal-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 6px; font-size: calc(15px * var(--k)); }
+.goal-input { width: 5.5em; min-height: 40px; padding: 6px 10px; text-align: center; font-weight: 700; }

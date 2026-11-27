@@ -111,3 +111,14 @@
 }
 .mic-status[hidden] { display: none; }
 .coach-face-slot { display: contents; }
+
+/* 教練來電：語音對話 */
+.call-status { min-height: 1.4em; opacity: .85; font-size: calc(15px * var(--k)); margin-top: 6px; }
+.call-talk {
+  display: inline-flex; align-items: center; gap: 8px; margin-top: 18px; padding: 12px 22px;
+  border: 0; border-radius: 999px; background: rgba(255,255,255,.16); color: #fff; font: inherit; font-weight: 700; cursor: pointer;
+}
+.call-talk.listening { background: #e5484d; }
+.call-type-row { width: min(320px, 86vw); margin-top: 12px; }
+.call-type { background: rgba(255,255,255,.12); border-color: rgba(255,255,255,.25); color: #fff; }
+.call-type::placeholder { color: rgba(255,255,255,.6); }

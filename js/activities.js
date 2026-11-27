@@ -27,6 +27,7 @@ export function activityKcal(a, minutes, weightKg = 60) {
 
 // 一筆運動紀錄的顯示文字：感測器／次數型 → 「跳繩 200 次」，分鐘型 → 「散步 30 分鐘」
 export function workoutLabel(w, byIdFn) {
+  if (w.activity === 'custom') return `${w.emoji || '🏃'} ${w.name || '運動'} ${w.minutes ? w.minutes + ' 分鐘' : ''}${w.reps ? w.reps + ' 次' : ''}`.trim();
   if (w.activity) { const a = activityByKey(w.activity); return `${a?.emoji || '🏃'} ${a?.name || '運動'} ${w.minutes} 分鐘`; }
   const ex = byIdFn?.(w.exerciseId);
   return `${ex?.emoji || '🏃'} ${ex?.name || '運動'} ${w.reps} 次${w.sets ? `（${w.sets} 組）` : ''}`;

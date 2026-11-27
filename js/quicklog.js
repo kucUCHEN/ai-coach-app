@@ -118,6 +118,18 @@ export function parseLog(text) {
     mins = Math.round(mins);
     if (mins > 0 && mins <= 600) out.workouts.push({ activity: a.key, minutes: mins });
   }
+  // 不在清單裡的運動：「去爬山 2 小時」「打網球 40 分鐘」「做了皮拉提斯半小時」→ 記成自訂運動，熱量交給 AI 估算
+  if (!out.workouts.length) {
+    const cm = new RegExp(`(?:去|做了?|練了?|玩了?|打了?|騎了?|爬了?|跑了?|跳了?|上了?)?\\s*([\\u4e00-\\u9fa5A-Za-z]{1,8}?)\\s*(?:了|課)?\\s*(${NUM}|\\d+|半)\\s*(個)?\\s*(分鐘|分|小時|鐘頭)`).exec(t);
+    const half = /半小時|半個小時/.test(t);
+    if (cm || half) {
+      const name = (cm ? cm[1] : t.replace(/半個?小時.*$/, '')).replace(/^(我|今天|剛剛|剛才|剛|早上|下午|晚上|有|去|做|練|玩)+/, '').replace(/^打(?=..)/, '').trim();
+      let mins = cm ? cnNum(cm[2]) : 30;
+      if (cm && /小時|鐘頭/.test(cm[4])) mins *= 60;
+      mins = Math.round(mins);
+      if (name && name.length <= 8 && !/吃|喝|睡|看|滑|讀書|上班|工作|開車|搭/.test(name) && mins > 0 && mins <= 600) out.workouts.push({ custom: name, minutes: mins });
+    }
+  }
   // 「快走」也含「走」，「打籃球」含「打球」→ 同一段時間不要記兩次
   if (out.workouts.some((w) => w.activity === 'brisk')) out.workouts = out.workouts.filter((w) => w.activity !== 'walk');
 
@@ -179,7 +191,11 @@ export function applyLog(parsed, profile = null) {
   }
   for (const w of workouts) {
     let rec;
-    if (w.activity) {
+    if (w.custom) {
+      // 先用中等強度暫估，教練頁會再請 AI 估算並更新
+      rec = { id: newId(), time: now(), activity: 'custom', name: w.custom, emoji: '🏃', minutes: w.minutes, kcal: Math.round(4 * kg * (w.minutes / 60) * 10) / 10, manual: true, estimating: true };
+      bits.push(`🏃 ${w.custom} ${w.minutes} 分鐘`);
+    } else if (w.activity) {
       const a = activityByKey(w.activity);
       rec = { id: newId(), time: now(), activity: a.key, minutes: w.minutes, kcal: activityKcal(a, w.minutes, kg), manual: true };
       bits.push(`${a.emoji} ${a.name} ${w.minutes} 分鐘`);
@@ -198,7 +214,7 @@ export function applyLog(parsed, profile = null) {
   if (bits.length) lines.push(`✅ 幫你記下來了：${bits.join('、')}`);
   lines.push(...notes);
   for (const u of unknown) lines.push(`我還不認識「${u}」，這一項沒有記錄。可以到飲食頁拍照或手動選擇，或直接告訴我熱量，例如「${u} ○○ 大卡」。`);
-  return { text: lines.join('\n'), logged: bits.length > 0, undo: bits.length ? { date: day?.date, ...undo } : null, topics: [...topics] };
+  return { text: lines.join('\n'), logged: bits.length > 0, pending: undo.workouts.length ? workouts.filter((w) => w.custom).length : 0, undo: bits.length ? { date: day?.date, ...undo } : null, topics: [...topics] };
 }
 
 // 復原剛剛那次自動記錄（用 id 刪）

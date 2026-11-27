@@ -34,6 +34,13 @@ function showInfo(p) {
       h('button', { class: 'btn ghost', onclick: () => showForm(p) }, '編輯'),
     ),
     h('div', { class: 'card' },
+      h('h2', {}, '⚖️ 記錄今天體重'),
+      last ? h('p', { class: 'muted small' }, `上次：${last.date.slice(5).replace('-', '/')}　${last.kg} 公斤`) : '',
+      h('div', { class: 'row' }, weightInput, h('span', { class: 'unit' }, '公斤'),
+        h('button', { class: 'btn', onclick: () => saveWeight(p, weightInput.value) }, '儲存')),
+      h('a', { class: 'link-btn', href: '#coach' }, '沒有體重計？也可以直接告訴 AI 教練', icon('chevron')),
+    ),
+    h('div', { class: 'card' },
       h('div', { class: 'metric-grid' },
         metric('身高', p.heightCm, '公分'),
         metric('體重', p.weightKg, '公斤'),
@@ -48,13 +55,6 @@ function showInfo(p) {
     energyCard(p, bmr, tdee, target),
     goalCard(p, lv, tdee, target),
     nutrientCard(p, target),
-    h('div', { class: 'card' },
-      h('h2', {}, '⚖️ 記錄今天體重'),
-      last ? h('p', { class: 'muted small' }, `上次：${last.date.slice(5).replace('-', '/')}　${last.kg} 公斤`) : '',
-      h('div', { class: 'row' }, weightInput, h('span', { class: 'unit' }, '公斤'),
-        h('button', { class: 'btn', onclick: () => saveWeight(p, weightInput.value) }, '儲存')),
-      h('a', { class: 'link-btn', href: '#coach' }, '沒有體重計？也可以直接告訴 AI 教練', icon('chevron')),
-    ),
   );
 }
 
