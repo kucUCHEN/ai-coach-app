@@ -4,10 +4,15 @@ import * as store from '../store.js';
 import * as ai from '../ai/index.js';
 import { icon } from '../icons.js';
 import { mascot, moodOf } from '../mascot.js';
-import { scoreDay } from '../health.js';
-import { parseLog, applyLog } from '../quicklog.js';
+import { scoreDay, ageMode } from '../health.js';
+import { parseLog, applyLog, undoLog, goalChange } from '../quicklog.js';
 
-const QUICK = ['🍱 我午餐吃了雞腿便當', '🪢 跳繩 200 下', '🍽️ 晚餐怎麼吃比較好？', '📊 我今天的表現如何？'];
+const QUICK = {
+  child: ['🏀 打籃球 30 分鐘', '🥛 怎麼長高？', '🍱 午餐吃了雞腿便當', '📊 我今天的表現如何？'],
+  teen: ['🏀 打籃球 30 分鐘', '💪 一天要吃多少蛋白質？', '🍱 午餐吃了雞腿便當', '📊 我今天的表現如何？'],
+  senior: ['🚶 今天散步 30 分鐘', '🩺 高血壓怎麼吃？', '🦵 膝蓋不好可以做什麼運動？', '📊 我今天的表現如何？'],
+  adult: ['🍱 午餐吃了雞腿便當', '🎯 多久可以達成目標？', '🍽️ 還能吃多少？', '📊 我今天的表現如何？'],
+};
 
 let controller = null;
 let recog = null;
@@ -19,24 +24,27 @@ const timeStr = (t) => {
 };
 
 // 從一句話抓身高、體重、年齡、性別，例如「我身高145 體重38」「我10歲 男生」
-export function parseProfileText(text) {
-  const out = {};
-  const hm = /身高\s*(?:是|有)?\s*(\d{2,3}(?:\.\d+)?)\s*(?:公分|cm|㎝)?/i.exec(text);
-  const wm = /體重\s*(?:是|有)?\s*(\d{2,3}(?:\.\d+)?)\s*(?:公斤|kg|㎏)?/i.exec(text);
-  const am = /(\d{1,3})\s*歲/.exec(text);
-  if (hm) { const v = Number(hm[1]); if (v >= 90 && v <= 230) out.heightCm = v; }
-  if (wm) { const v = Number(wm[1]); if (v >= 12 && v <= 250) out.weightKg = v; }
-  if (am) { const v = Number(am[1]); if (v >= 2 && v <= 110) out.age = v; }
-  if (/(我是|我)\s*(\d+\s*歲\s*(的)?)?\s*男(生|孩)|^\s*男(生|孩)|\s男(生|孩)/.test(text)) out.sex = 'M';
-  if (/(我是|我)\s*(\d+\s*歲\s*(的)?)?\s*女(生|孩)|^\s*女(生|孩)|\s女(生|孩)/.test(text)) out.sex = 'F';
-  return out;
+// 回傳 {found:{...合理的值}, errors:[不合理的說明]}
+export function parseProfileInput(text) {
+  const found = {}, errors = [];
+  const num = (re) => { const m = re.exec(text); return m ? Number(m[1]) : null; };
+  const hv = num(/身高\s*(?:是|有)?\s*(-?\d+(?:\.\d+)?)/);
+  const wv = num(/體重\s*(?:是|有)?\s*(-?\d+(?:\.\d+)?)/);
+  const av = num(/(-?\d{1,3})\s*歲/);
+  if (hv != null) { if (hv >= 90 && hv <= 230) found.heightCm = hv; else errors.push(`身高 ${hv} 公分看起來不太對（請輸入 90–230 公分）`); }
+  if (wv != null) { if (wv >= 12 && wv <= 250) found.weightKg = wv; else errors.push(`體重 ${wv} 公斤看起來不太對（請輸入 12–250 公斤）`); }
+  if (av != null) { if (av >= 2 && av <= 110) found.age = av; else errors.push(`${av} 歲看起來不太對（請輸入 2–110 歲）`); }
+  if (/(^|[我是，,、\s歲的])男(生|孩|性|的)?(?!朋友|同學|生們)/.test(text) && !/男朋友|男同學/.test(text)) found.sex = 'M';
+  else if (/(^|[我是，,、\s歲的])女(生|孩|性|的)?(?!朋友|同學|生們)/.test(text) && !/女朋友|女同學/.test(text)) found.sex = 'F';
+  return { found, errors };
 }
+export const parseProfileText = (text) => parseProfileInput(text).found;
 
 function speakerBtn(text) {
   return h('button', { class: 'coach-speak', type: 'button', 'aria-label': '朗讀', onclick: () => speak(text) }, icon('speaker'));
 }
 
-function bubble(m) {
+function bubble(m, onUndo) {
   const isCoach = m.role === 'assistant';
   const textEl = h('div', { class: 'bubble-text' });
   textEl.textContent = m.content; // 一律用 textContent，不用 innerHTML
@@ -44,6 +52,7 @@ function bubble(m) {
     isCoach ? mascot('good', 'msg-avatar') : null,
     h('div', { class: 'bubble' },
       textEl,
+      m.undo && !m.undone ? h('button', { class: 'undo-btn', type: 'button', onclick: () => onUndo(m) }, '↩︎ 復原') : null,
       h('div', { class: 'msg-meta' }, h('span', {}, timeStr(m.time)), isCoach ? speakerBtn(m.content) : null),
     ),
   );
@@ -56,10 +65,18 @@ function todayMood(profile) {
 }
 
 export function render(root) {
-  const profile = store.getProfile();
-  const greet = ai.coachNudge({ profile, day: store.getDay() });
+  let profile = store.getProfile();
   const greetText = h('p', { class: 'coach-greet-text' });
-  greetText.textContent = greet;
+  let greet = '';
+  const greetSpeak = h('span', {});
+  const faceSlot = h('span', { class: 'coach-face-slot' });
+  function refreshGreet() {
+    profile = store.getProfile();
+    greet = ai.coachNudge({ profile, day: store.getDay() });
+    greetText.textContent = greet;
+    greetSpeak.replaceChildren(speakerBtn(greet));
+    faceSlot.replaceChildren(mascot(todayMood(profile), 'coach-face'));
+  }
 
   const badge = h('span', { class: 'demo-badge', hidden: !ai.isDemo() }, '示範模式');
   const list = h('div', { class: 'chat-list', 'aria-live': 'polite' });
@@ -67,26 +84,43 @@ export function render(root) {
   const sendBtn = h('button', { class: 'chat-send', type: 'submit', 'aria-label': '送出' }, icon('send'));
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   const micBtn = h('button', { class: 'chat-mic', type: 'button', 'aria-label': '語音輸入', onclick: toggleMic }, icon('mic'));
+  const micStatus = h('p', { class: 'mic-status', role: 'status', hidden: true });
+  let micTimer = null, hideTimer = null;
+  function micSay(text, ms = 0) {
+    clearTimeout(hideTimer);
+    micStatus.textContent = text; micStatus.hidden = !text;
+    if (ms) hideTimer = setTimeout(() => { micStatus.hidden = true; }, ms);
+  }
 
   function refreshBadge() { badge.hidden = !(ai.isDemo() || ai.lastStatus().demo); }
-  badge.hidden = !ai.isDemo();
+
+  function onUndo(m) {
+    undoLog(m.undo);
+    const chat = store.getChat();
+    const t = chat.find((x) => x.time === m.time && x.content === m.content);
+    if (t) { t.undone = true; t.content += '\n（↩︎ 已復原，這次的紀錄刪除了）'; }
+    store.setChat(chat);
+    toast('已復原剛剛的紀錄');
+    refreshGreet();
+    drawChat(false);
+  }
 
   function drawChat(scroll = true) {
     const chat = store.getChat();
-    list.replaceChildren(...chat.map(bubble));
+    list.replaceChildren(...chat.map((m) => bubble(m, onUndo)));
     if (!profile && chat.length === 0) {
       list.append(h('div', { class: 'coach-tip card' },
         h('p', {}, '建立基本資料後，教練能給你更準確的建議。'),
         h('button', { class: 'btn block', type: 'button', onclick: () => go('body') }, '建立基本資料'),
-        h('p', { class: 'small muted' }, '也可以直接輸入，例如：「我 35 歲，身高 170、體重 65」'),
+        h('p', { class: 'small muted' }, '也可以直接輸入，例如：「我 35 歲女生，身高 160、體重 55」'),
       ));
     }
     if (scroll) requestAnimationFrame(() => { const v = root.closest('.view') || root; v.scrollTop = v.scrollHeight; });
   }
 
-  function addMsg(role, content) {
+  function addMsg(role, content, extra = {}) {
     const chat = store.getChat();
-    chat.push({ role, content, time: Date.now() });
+    chat.push({ role, content, time: Date.now(), ...extra });
     store.setChat(chat);
     return chat;
   }
@@ -95,11 +129,20 @@ export function render(root) {
     text = String(text || '').trim();
     if (!text || controller) return;
     input.value = '';
+    micSay('');
     let chat = addMsg('user', text);
 
-    // 對話裡說了身高體重 → 寫進個人資料
-    const found = parseProfileText(text);
-    let localReply = '';
+    // 危機：固定回覆，不記錄任何東西、不接其他建議
+    if (ai.isCrisis(text)) {
+      addMsg('assistant', ai.crisisReply(store.getProfile()));
+      drawChat();
+      return;
+    }
+
+    // 對話裡說了身高體重 → 寫進個人資料（不合理的數字說明哪裡不對；沒講性別要問）
+    const { found, errors } = parseProfileInput(text);
+    const pre = [];
+    if (errors.length) pre.push('⚠️ ' + errors.join('；') + '，這些先不記錄。');
     if (Object.keys(found).length) {
       const p = { goal: 'keep', activity: 'mid', ...(store.getProfile() || {}), ...found };
       store.setProfile(p);
@@ -108,13 +151,27 @@ export function render(root) {
       if (found.weightKg) { bits.push(`體重 ${found.weightKg} 公斤`); try { store.addWeight(found.weightKg); } catch {} }
       if (found.age) bits.push(`${found.age} 歲`);
       if (found.sex) bits.push(found.sex === 'M' ? '男' : '女');
-      localReply = `已更新你的資料：${bits.join('、')}。`;
-      if (!p.heightCm || !p.weightKg) localReply += p.heightCm ? ' 也請告訴我你的體重。' : ' 也請告訴我你的身高。';
+      let r = `已更新你的資料：${bits.join('、')}。`;
+      const miss = [];
+      if (!p.heightCm) miss.push('身高'); if (!p.weightKg) miss.push('體重'); if (!p.age) miss.push('年齡');
+      if (miss.length) r += ` 也請告訴我你的${miss.join('、')}。`;
+      if (!p.sex) r += ' 請再告訴我你是「男」還是「女」，熱量才算得準。';
+      pre.push(r);
     }
 
-    // 一句話記錄飲食或運動
-    const logged = applyLog(parseLog(text));
-    if (logged) localReply = (localReply ? localReply + '\n' : '') + logged;
+    // 目標：「我想增肌」
+    const parsed = parseLog(text);
+    if (parsed.goal && store.getProfile()) {
+      const gc = goalChange(parsed.goal, store.getProfile());
+      store.setProfile(gc.profile);
+      if (gc.text) pre.push(gc.text);
+    }
+
+    // 一句話記錄飲食或運動（問句不記錄）
+    const log = applyLog(parsed, store.getProfile());
+    if (log.text) pre.push(log.text);
+    const localReply = pre.join('\n');
+    profile = store.getProfile();
 
     drawChat();
     const typing = h('div', { class: 'msg from-coach typing' },
@@ -127,26 +184,34 @@ export function render(root) {
     controller = new AbortController();
     let reply = '';
     try {
-      if (localReply && ai.isDemo()) reply = localReply + (logged ? '\n' + ai.coachNudge({ profile: store.getProfile(), day: store.getDay() }) : ' 我會依照這些資料給你建議。');
-      else {
-        reply = await ai.chat(chat.map((m) => ({ role: m.role, content: m.content })), { signal: controller.signal });
-        if (localReply) reply = localReply + '\n' + reply;
+      const local = ai.localAnswer(text, profile, store.getDay());
+      if (ai.mustAnswerLocally(text, profile)) reply = [localReply, local].filter(Boolean).join('\n');
+      else if (ai.isDemo()) {
+        if (local) reply = [localReply, local].filter(Boolean).join('\n');
+        else if (log.logged) reply = localReply + '\n' + ai.logTip(log.topics, profile, store.getDay());
+        else if (localReply) reply = localReply + (Object.keys(found).length ? ' 我會依照這些資料給你建議。' : '');
+        else reply = ai.demoReply(text);
+      } else {
+        const r = await ai.chat(chat.map((m) => ({ role: m.role, content: m.content })), { signal: controller.signal });
+        reply = [localReply, r].filter(Boolean).join('\n');
       }
     } catch {
-      reply = ai.demoReply(text);
+      reply = [localReply, ai.demoReply(text)].filter(Boolean).join('\n');
     } finally {
       controller = null;
       sendBtn.disabled = false;
     }
     if (!list.isConnected) return; // 已經換頁
-    if (reply) addMsg('assistant', reply);
+    if (reply) addMsg('assistant', reply, log.undo ? { undo: log.undo } : {});
     refreshBadge();
+    refreshGreet();
     drawChat();
   }
 
+  function stopMic() { clearTimeout(micTimer); try { recog?.stop(); } catch {} }
   function toggleMic() {
-    if (!SR) { toast('此瀏覽器不支援語音輸入，請使用鍵盤上的麥克風', 3200); input.focus(); return; }
-    if (recog) { recog.stop(); return; }
+    if (!SR) { micSay('這支手機不能用語音，請改用鍵盤上的麥克風', 5000); input.focus(); return; }
+    if (recog) { stopMic(); return; }
     try {
       recog = new SR();
       recog.lang = 'zh-TW';
@@ -154,52 +219,60 @@ export function render(root) {
       recog.maxAlternatives = 1;
       micBtn.classList.add('listening');
       micBtn.setAttribute('aria-label', '停止');
-      let finalText = '';
+      micSay('🎙️ 正在聽，請說話…');
+      let finalText = '', heard = false, errored = false;
+      const arm = () => { clearTimeout(micTimer); micTimer = setTimeout(() => { if (!finalText.trim()) { errored = true; micSay('沒有聽清楚，請再說一次', 4000); } stopMic(); }, 8000); };
+      arm();
       recog.onresult = (e) => {
         let t = '';
         for (const r of e.results) { t += r[0].transcript; if (r.isFinal) finalText = t; }
-        input.value = t;
+        heard = true; input.value = t; arm();
       };
       recog.onerror = (e) => {
-        if (e.error === 'not-allowed' || e.error === 'service-not-allowed') toast('請允許使用麥克風，或使用鍵盤上的麥克風', 3200);
-        else if (e.error !== 'aborted' && e.error !== 'no-speech') toast('沒有聽清楚，請再說一次');
+        errored = true;
+        if (e.error === 'not-allowed' || e.error === 'service-not-allowed') micSay('請允許使用麥克風，或改用鍵盤上的麥克風', 5000);
+        else if (e.error !== 'aborted') micSay('沒有聽清楚，請再說一次', 4000);
       };
       recog.onend = () => {
+        clearTimeout(micTimer);
         micBtn.classList.remove('listening');
         micBtn.setAttribute('aria-label', '語音輸入');
         recog = null;
         if (finalText.trim()) send(finalText);
+        else if (!errored) micSay(heard ? '沒有聽清楚，請再說一次' : '沒有聽到聲音，請再按一次麥克風', 4000);
       };
       recog.start();
     } catch {
       recog = null;
       micBtn.classList.remove('listening');
-      toast('請使用鍵盤上的麥克風', 3000);
+      micSay('這支手機不能用語音，請改用鍵盤上的麥克風', 5000);
     }
   }
 
   const form = h('form', { class: 'chat-composer', onsubmit: (e) => { e.preventDefault(); send(input.value); } },
     micBtn, input, sendBtn);
+  const quick = QUICK[ageMode(profile)] || QUICK.adult;
 
+  refreshGreet();
   root.append(
     h('div', { class: 'coach-page' },
-      
       h('section', { class: 'coach-hero card' },
         h('div', { class: 'coach-hero-top' },
-          mascot(todayMood(profile), 'coach-face'),
+          faceSlot,
           h('div', { class: 'coach-name' }, h('strong', {}, '教練小健'), ' ', badge,
             h('div', { class: 'coach-ai-note' }, 'AI 健康教練（非真人）')),
-          speakerBtn(greet),
+          greetSpeak,
         ),
         greetText,
         h('button', { class: 'btn ghost block coach-call', type: 'button', onclick: () => incomingCall({
-          title: 'AI 教練', message: ai.coachNudge({ profile: store.getProfile(), day: store.getDay() }),
+          title: '教練小健', message: ai.callScript(store.getProfile(), store.getDay()),
           onAccept: (msg) => { addMsg('assistant', msg); drawChat(); },
         }) }, icon('phone'), '模擬來電提醒'),
       ),
       list,
       h('p', { class: 'fine center' }, 'AI 建議僅供參考，不能取代醫療診斷。身體不適請就醫。'),
-      h('div', { class: 'quick-row' }, QUICK.map((q) => h('button', { class: 'chip', type: 'button', onclick: () => send(q) }, q))),
+      h('div', { class: 'quick-row' }, quick.map((q) => h('button', { class: 'chip', type: 'button', onclick: () => send(q.replace(/^\S+\s/, '')) }, q))),
+      micStatus,
       form,
     ),
   );

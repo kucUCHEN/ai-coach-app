@@ -1,27 +1,50 @@
 // 「運動」：連接感測器、選運動、看次數圓環，結束後記錄到今天。
+// 運動進行中切到別的分頁：感測器在背景繼續計數，回來時接著顯示；只有按「結束」才存檔。
 import { h, toast } from '../ui.js';
 import { icon } from '../icons.js';
 import { getProfile, updateDay, getDay } from '../store.js';
 import { getSensor, EXERCISES, byId } from '../sensor/index.js';
+import { ACTIVITIES, activityKcal, workoutLabel } from '../activities.js';
+import { ageMode, workoutMinutes } from '../health.js';
 
-let root = null;
+// ---- 模組層級狀態（離開頁面仍保留）----
 let sensor = null;
-let offs = [];           // 取消事件監聽用
-let state = null;        // { exId, running, reps, quality, stars, battery, connecting }
+let bound = false;       // 事件監聽只註冊一次
+const state = { exId: 0, running: false, reps: 0, quality: 0, stars: 0, battery: null, connecting: false, celebrated: false };
 let els = {};
+let tipTimer = null;
+
+const FORM_TIP = {
+  0: '這一下沒跳完整，雙腳離地、手腕繞圈',
+  1: '這一下動作不完整，手舉高過頭、腳張開',
+  2: '這一下動作不完整，蹲低一點',
+  3: '這一下動作不完整，手伸直再彎起來',
+  4: '這一下動作不完整，上身再起來一點',
+};
+
+function bind() {
+  if (bound) return;
+  bound = true;
+  state.battery = sensor.battery ?? null;
+  sensor.on('status', () => { drawStatus(); drawControls(); });
+  sensor.on('battery', ({ pct }) => { state.battery = pct; drawStatus(); });
+  sensor.on('count', ({ reps, quality, stars }) => {
+    if (!state.running) return;
+    Object.assign(state, { reps, quality, stars });
+    const ex = byId(state.exId);
+    if (!state.celebrated && reps >= ex.goal) { state.celebrated = true; celebrate(ex); }
+    drawRing();
+  });
+  sensor.on('form', ({ ok }) => { if (!ok && state.running) showTip(FORM_TIP[state.exId] || '這一下動作不完整'); });
+}
+
+function setLive(on) {
+  document.querySelector('.tabbar a[data-route="exercise"]')?.classList.toggle('live', on);
+}
 
 export function render(r) {
-  root = r;
   sensor = getSensor();
-  state = { exId: state?.exId ?? 0, running: false, reps: 0, quality: 0, stars: 0, battery: sensor.battery ?? null, connecting: false };
-
-  offs.forEach((f) => f()); offs = [];
-  offs.push(sensor.on('status', () => { drawStatus(); drawControls(); }));
-  offs.push(sensor.on('battery', ({ pct }) => { state.battery = pct; drawStatus(); }));
-  offs.push(sensor.on('count', ({ reps, quality, stars }) => {
-    if (!state.running) return;
-    Object.assign(state, { reps, quality, stars }); drawRing();
-  }));
+  bind();
 
   const profileHint = getProfile() ? null
     : h('div', { class: 'card notice' }, '建立基本資料後，運動會計入每日評分。 ', h('a', { href: '#body' }, '前往建立'));
@@ -30,27 +53,25 @@ export function render(r) {
   els.chips = h('div', { class: 'chip-scroll' });
   els.where = h('p', { class: 'where' });
   els.ring = h('div', { class: 'ring-wrap' });
+  els.tip = h('div', { class: 'form-tip', role: 'status', 'aria-live': 'polite', hidden: true });
+  els.goal = h('div', { class: 'goal-done', hidden: !state.celebrated || !state.running });
   els.controls = h('div', { class: 'controls' });
   els.today = h('div', { class: 'card' });
 
-  root.replaceChildren(
+  r.replaceChildren(
     ...(profileHint ? [profileHint] : []),
     els.status,
     h('div', { class: 'card' }, h('h2', {}, '🏃 選擇運動'), els.chips, els.where),
-    h('div', { class: 'card' }, els.ring, els.controls),
+    h('div', { class: 'card ex-live' }, els.ring, els.tip, els.goal, els.controls),
     manualCard(),
     els.today,
   );
-  drawStatus(); drawChips(); drawRing(); drawControls(); drawToday();
+  drawStatus(); drawChips(); drawRing(); drawGoal(); drawControls(); drawToday();
 }
 
 export function leave() {
-  if (state?.running) {
-    state.running = false;
-    try { sensor.stop(); } catch {}
-    if (state.reps > 0) saveWorkout(true);
-  }
-  offs.forEach((f) => f()); offs = [];
+  // 不停止感測器、不存檔：運動中切頁仍繼續計數
+  clearTimeout(tipTimer);
   els = {};
 }
 
@@ -80,12 +101,17 @@ async function connect() {
 
 // ---------- 選運動 ----------
 function drawChips() {
+  if (!els.chips) return;
   els.chips.replaceChildren(...EXERCISES.map((e) =>
     h('button', { class: 'chip' + (e.id === state.exId ? ' on' : ''), disabled: state.running,
-      onclick: () => { state.exId = e.id; state.reps = 0; state.quality = 0; state.stars = 0; drawChips(); drawRing(); } },
+      onclick: () => {
+        Object.assign(state, { exId: e.id, reps: 0, quality: 0, stars: 0, celebrated: false });
+        if (els.manualEx) els.manualEx.value = String(e.id);
+        drawChips(); drawRing(); drawGoal();
+      } },
       `${e.emoji} ${e.name}`)));
   const ex = byId(state.exId);
-  els.where.replaceChildren(`感測器配戴位置：${ex.where}　目標 ${ex.goal} 次`);
+  els.where.replaceChildren(`感測器配戴位置：${ex.where}　今天目標 ${ex.goal} 次`);
 }
 
 // ---------- 大圓環 ----------
@@ -116,11 +142,30 @@ function drawRing() {
   );
 }
 
+function showTip(msg) {
+  if (!els.tip) return;
+  els.tip.textContent = '⚠️ ' + msg;
+  els.tip.hidden = false;
+  clearTimeout(tipTimer);
+  tipTimer = setTimeout(() => { if (els.tip) els.tip.hidden = true; }, 1800);
+}
+
+function celebrate(ex) {
+  toast(`🎉 達成目標 ${ex.goal} 次！可以繼續做`);
+  drawGoal();
+}
+function drawGoal() {
+  if (!els.goal) return;
+  const show = state.celebrated && state.reps > 0;
+  els.goal.hidden = !show;
+  if (show) els.goal.textContent = `🎉 已達成目標 ${byId(state.exId).goal} 次，繼續加油！`;
+}
+
 // ---------- 開始／結束 ----------
 function drawControls() {
   if (!els.controls) return;
   if (!sensor.connected) {
-    els.controls.replaceChildren(h('p', { class: 'muted center small' }, '連接感測器後即可開始，也可以手動輸入次數。'));
+    els.controls.replaceChildren(h('p', { class: 'muted center small' }, '連接感測器後即可開始，也可以手動輸入。'));
     return;
   }
   els.controls.replaceChildren(state.running
@@ -129,24 +174,27 @@ function drawControls() {
 }
 
 async function start() {
-  Object.assign(state, { running: true, reps: 0, quality: 0, stars: 0 });
-  drawChips(); drawRing(); drawControls();
-  try { await sensor.start(state.exId); } catch (e) { console.warn(e); state.running = false; toast('無法開始，請再試一次'); drawControls(); drawChips(); }
+  Object.assign(state, { running: true, reps: 0, quality: 0, stars: 0, celebrated: false });
+  setLive(true);
+  drawChips(); drawRing(); drawGoal(); drawControls();
+  try { await sensor.start(state.exId); }
+  catch (e) { console.warn(e); state.running = false; setLive(false); toast('無法開始，請再試一次'); drawControls(); drawChips(); }
 }
 
 async function stop() {
   try { await sensor.stop(); } catch (e) { console.warn(e); } // 感測器會再回報最後一次次數
   state.running = false;
-  if (state.reps > 0) saveWorkout(false);
+  setLive(false);
+  if (state.reps > 0) saveWorkout();
   else toast('這次沒有偵測到動作');
   drawChips(); drawControls(); drawToday();
 }
 
-function saveWorkout(quiet) {
+function saveWorkout() {
   const ex = byId(state.exId);
   const kcal = Math.round(state.reps * ex.kcalPerRep * 10) / 10;
   addWorkout({ exerciseId: ex.id, reps: state.reps, quality: state.quality, stars: state.stars, kcal });
-  if (!quiet) toast(cheer(state.reps, ex));
+  toast(cheer(state.reps, ex));
 }
 
 function addWorkout(w) {
@@ -161,21 +209,86 @@ function cheer(reps, ex) {
 }
 
 // ---------- 手動輸入 ----------
+// 驗證整數：回傳數字或錯誤訊息
+function readInt(input, min, max, what) {
+  const raw = String(input.value).trim();
+  if (raw === '') return { err: `請輸入${what}` };
+  const n = Number(raw);
+  if (!Number.isFinite(n) || !Number.isInteger(n)) return { err: '請輸入整數' };
+  if (n < min || n > max) return { err: `${what}請輸入 ${min}–${max}` };
+  return { n };
+}
+
 function manualCard() {
-  const exSel = h('select', { 'aria-label': '運動' }, EXERCISES.map((e) => h('option', { value: e.id }, e.name)));
-  const reps = h('input', { type: 'number', inputmode: 'numeric', min: '1', max: '5000', placeholder: '次數', 'aria-label': '次數' });
-  const body = h('div', { class: 'manual-body', hidden: true },
-    h('div', { class: 'grid2' }, exSel, reps),
-    h('button', { class: 'btn block mt', onclick: () => {
-      const n = Math.round(Number(reps.value));
-      if (!(n > 0 && n <= 5000)) return toast('請輸入正確的次數');
+  const p = getProfile() || {};
+  const mode = ageMode(p);
+  const gentle = mode === 'senior' || (p.conditions || []).includes('joint');
+  const child = mode === 'child';
+  let kind = gentle ? 'min' : 'reps';
+
+  // 次數型
+  const exOrder = child ? [...EXERCISES].sort((a, b) => (b.key === 'jump_rope') - (a.key === 'jump_rope')) : EXERCISES;
+  const exSel = h('select', { 'aria-label': '運動' }, exOrder.map((e) => h('option', { value: e.id }, `${e.emoji} ${e.name}`)));
+  exSel.value = String(state.exId);
+  els.manualEx = exSel;
+  const reps = h('input', { type: 'number', inputmode: 'numeric', min: '1', max: '1000', step: '1', placeholder: '次數', 'aria-label': '次數' });
+  const sets = h('input', { type: 'number', inputmode: 'numeric', min: '1', max: '20', step: '1', placeholder: '組數（可不填）', 'aria-label': '組數' });
+
+  // 分鐘型
+  const acts = [...ACTIVITIES];
+  if (gentle) acts.sort((a, b) => (a.impact === 'low' ? 0 : 1) - (b.impact === 'low' ? 0 : 1));
+  if (child) acts.sort((a, b) => (b.key === 'basketball') - (a.key === 'basketball'));
+  const actSel = h('select', { 'aria-label': '運動項目' }, acts.map((a) =>
+    h('option', { value: a.key }, `${a.emoji} ${a.name}${gentle && a.impact === 'high' ? '　⚠️ 高衝擊' : ''}`)));
+  const minutes = h('input', { type: 'number', inputmode: 'numeric', min: '1', max: '300', step: '1', placeholder: '分鐘', 'aria-label': '分鐘' });
+
+  const err = h('p', { class: 'form-err small', role: 'alert', hidden: true });
+  const fail = (m) => { err.textContent = m; err.hidden = false; };
+
+  const repsBox = h('div', {}, h('div', { class: 'grid2' }, exSel, reps), h('div', { class: 'grid2 mt' }, sets, h('span')));
+  const minBox = h('div', {}, h('div', { class: 'grid2' }, actSel, minutes),
+    gentle ? h('p', { class: 'muted tiny' }, '低衝擊運動排在前面，對膝蓋比較友善。') : null);
+
+  const tabR = h('button', { class: 'seg-btn', type: 'button', onclick: () => setKind('reps') }, '算次數');
+  const tabM = h('button', { class: 'seg-btn', type: 'button', onclick: () => setKind('min') }, '算分鐘');
+  function setKind(k) {
+    kind = k; err.hidden = true;
+    repsBox.hidden = k !== 'reps'; minBox.hidden = k !== 'min';
+    tabR.classList.toggle('on', k === 'reps'); tabM.classList.toggle('on', k === 'min');
+    tabR.setAttribute('aria-pressed', k === 'reps'); tabM.setAttribute('aria-pressed', k === 'min');
+  }
+  setKind(kind);
+
+  const save = () => {
+    err.hidden = true;
+    if (kind === 'reps') {
+      const r = readInt(reps, 1, 1000, '次數'); if (r.err) return fail(r.err);
+      let s = null;
+      if (String(sets.value).trim() !== '') { const q = readInt(sets, 1, 20, '組數'); if (q.err) return fail(q.err); s = q.n; }
       const ex = byId(exSel.value);
-      addWorkout({ exerciseId: ex.id, reps: n, quality: null, stars: 0, kcal: Math.round(n * ex.kcalPerRep * 10) / 10, manual: true });
-      reps.value = '';
-      toast(cheer(n, ex)); drawToday();
-    } }, '儲存'));
+      const total = r.n * (s || 1);
+      const w = { exerciseId: ex.id, reps: r.n, quality: null, stars: 0, kcal: Math.round(total * ex.kcalPerRep * 10) / 10, manual: true };
+      if (s) w.sets = s;
+      addWorkout(w);
+      reps.value = ''; sets.value = '';
+      toast(cheer(total, ex));
+    } else {
+      const m = readInt(minutes, 1, 300, '分鐘'); if (m.err) return fail(m.err);
+      const a = ACTIVITIES.find((x) => x.key === actSel.value);
+      addWorkout({ activity: a.key, minutes: m.n, kcal: activityKcal(a, m.n, getProfile()?.weightKg), manual: true });
+      minutes.value = '';
+      toast(`👍 已記錄 ${a.name} ${m.n} 分鐘`);
+    }
+    drawToday();
+  };
+
+  const body = h('div', { class: 'manual-body', hidden: true },
+    h('div', { class: 'seg', role: 'group', 'aria-label': '記錄方式' }, tabR, tabM),
+    repsBox, minBox, err,
+    h('button', { class: 'btn block mt', onclick: save }, '儲存'));
   return h('div', { class: 'card' },
-    h('button', { class: 'link-btn', onclick: () => { body.hidden = !body.hidden; } }, '沒有感測器？手動輸入次數', icon('chevron')),
+    h('button', { class: 'link-btn', onclick: () => { body.hidden = !body.hidden; if (!body.hidden) exSel.value = String(state.exId); } },
+      '沒有感測器？手動輸入', icon('chevron')),
     body);
 }
 
@@ -183,16 +296,25 @@ function manualCard() {
 function drawToday() {
   if (!els.today) return;
   const day = getDay();
-  const total = day.workouts.reduce((s, w) => s + (Number(w.kcal) || 0), 0);
+  const ws = day.workouts || [];
+  const total = ws.reduce((s, w) => s + (Number(w.kcal) || 0), 0);
+  const mins = ws.reduce((s, w) => s + workoutMinutes(w), 0);
   els.today.replaceChildren(
     h('h2', {}, '🏅 今日運動'),
-    day.workouts.length ? h('ul', { class: 'list' }, day.workouts.map((w) => {
-      const ex = byId(w.exerciseId) || EXERCISES[0];
-      return h('li', { class: 'list-item' },
+    ws.length ? h('p', { class: 'small today-sum' }, `共 ${ws.length} 項・約 ${mins} 分鐘・${Math.round(total)} 大卡`) : '',
+    ws.length ? h('ul', { class: 'list' }, ws.map((w) =>
+      h('li', { class: 'list-item' },
         h('span', { class: 'muted small' }, w.time || ''),
-        h('span', { class: 'grow' }, `${ex.emoji} ${ex.name} ${w.reps} 次`),
-        h('span', { class: 'small muted' }, `${Math.round(w.kcal)} 大卡`));
-    })) : h('p', { class: 'muted small' }, '尚未記錄。'),
-    day.workouts.length ? h('p', { class: 'small' }, `共消耗約 ${Math.round(total)} 大卡`) : '',
+        h('span', { class: 'grow' }, workoutLabel(w, byId)),
+        h('span', { class: 'small muted' }, `${Math.round(w.kcal)} 大卡`),
+        h('button', { class: 'del-btn', 'aria-label': '刪除這筆', onclick: () => removeWorkout(w) }, '×'))))
+      : h('p', { class: 'muted small' }, '尚未記錄。'),
   );
+}
+
+function removeWorkout(w) {
+  if (!confirm(`要刪除「${workoutLabel(w, byId)}」這筆紀錄嗎？`)) return;
+  updateDay((d) => { const i = d.workouts.findIndex((x) => (w.id ? x.id === w.id : x.time === w.time && x.kcal === w.kcal)); if (i >= 0) d.workouts.splice(i, 1); });
+  toast('已刪除');
+  drawToday();
 }

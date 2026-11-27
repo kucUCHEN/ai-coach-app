@@ -1,10 +1,11 @@
 // 設定：提醒、字體大小、AI 連線入口、示範資料、清除資料、關於。
-import { h, toast, incomingCall } from '../ui.js';
+import { h, toast, incomingCall, askAdmin } from '../ui.js';
 import { icon } from '../icons.js';
-import { getSettings, setSettings, getProfile, setProfile, setDay, addWeight, getRewards, setRewards, clearAll, todayKey } from '../store.js';
+import { getSettings, setSettings, getProfile, setProfile, setDay, setRewards, setChat, setItem, clearAll, todayKey } from '../store.js';
 import { FOODS } from '../foods.js';
 import { EXERCISES } from '../sensor/exercises.js';
-import { scoreDay } from '../health.js';
+import { scoreDay, isMinor } from '../health.js';
+import { activityKcal } from '../activities.js';
 
 let root = null;
 
@@ -52,6 +53,7 @@ function remindCard() {
 }
 function label(t) {
   const hh = Number(t.slice(0, 2));
+  if (isMinor(getProfile())) return hh < 10 ? '吃早餐' : hh < 14 ? '記錄午餐' : hh < 20 ? '運動' : '早點睡';
   return hh < 10 ? '量體重' : hh < 14 ? '記錄午餐' : hh < 20 ? '運動' : '查看今日紀錄';
 }
 
@@ -75,10 +77,10 @@ function fontCard() {
   const big = (s.fontScale || 1) > 1;
   const set = (scale) => { const ss = getSettings(); ss.fontScale = scale; setSettings(ss); applyFont(scale); draw(); };
   return h('div', { class: 'card row between' },
-    h('div', { class: 'bold' }, '字體大小'),
-    h('div', { class: 'segment small-seg' },
-      h('button', { class: big ? '' : 'on', onclick: () => set(1) }, '標準'),
-      h('button', { class: big ? 'on' : '', onclick: () => set(1.15) }, '大')),
+    h('div', {}, h('div', { class: 'bold' }, '字體大小'), h('div', { class: 'muted small' }, big ? '目前：大' : '目前：標準')),
+    h('div', { class: 'segment small-seg font-seg', role: 'radiogroup', 'aria-label': '字體大小' },
+      h('button', { class: big ? '' : 'on', role: 'radio', 'aria-checked': String(!big), onclick: () => set(1) }, '標準'),
+      h('button', { class: big ? 'on' : '', role: 'radio', 'aria-checked': String(big), onclick: () => set(1.2) }, '大')),
   );
 }
 
@@ -92,47 +94,72 @@ function aiCard() {
 // ---------- 示範資料 ----------
 function demoCard() {
   return h('div', { class: 'card row between' },
-    h('div', {}, h('div', { class: 'bold' }, '載入示範資料'), h('div', { class: 'muted small' }, '產生過去 14 天的紀錄，方便展示。')),
+    h('div', {}, h('div', { class: 'bold' }, '載入示範資料'), h('div', { class: 'muted small' }, '示範人物「小安」（10 歲）過去 14 天與今天的紀錄。')),
     h('button', { class: 'btn ghost', onclick: () => {
-      if (!confirm('載入示範資料？過去 14 天的紀錄會被取代（今天的不受影響）。')) return;
+      if (!confirm('載入示範資料？個人資料會換成示範人物「小安」，過去 14 天與今天的紀錄、點數、聊天紀錄會被取代。')) return;
       loadDemo(); toast('已載入示範資料'); draw();
     } }, '載入'),
   );
 }
 
-// 產生合理的假資料：體重慢慢下降一點點、每天 3～4 餐、1～3 次運動
+// 國小組展示用：小安 10 歲男生，14 天裡約 5 天達標，體重隨成長小幅上升；今天也有早餐、午餐、跳繩與聊天紀錄。
+// 用固定的資料（不用亂數），每次展示結果都一樣。
 function loadDemo() {
-  let p = getProfile();
-  if (!p) { p = { name: '示範使用者', age: 35, sex: 'M', heightCm: 172, weightKg: 74.5, goal: 'lose', activity: 'mid' }; setProfile(p); }
-  const pickFood = (group) => { const list = FOODS.filter((f) => f.group === group); return list[Math.floor(Math.random() * list.length)]; };
-  const meal = (time, foods) => ({
-    id: time + Math.random().toString(36).slice(2, 7), time, photo: false,
-    name: foods.map((f) => f.name).join('、'), kcal: foods.reduce((s, f) => s + f.kcal, 0),
-    groups: [...new Set(foods.map((f) => f.group))],
-  });
-  const rewards = getRewards(); rewards.awarded ||= {};
-  let kg = p.weightKg + 0.8;
+  const p = { name: '小安', age: 10, sex: 'M', heightCm: 140, weightKg: 38, goal: 'keep', activity: 'mid' };
+  setProfile(p);
+  const F = (n) => FOODS.find((f) => f.name === n);
+  let seq = 0;
+  const meal = (date, time, names) => {
+    const foods = names.map(F).filter(Boolean);
+    return { id: `${date}-${time}-${seq++}`, time, photo: false,
+      name: foods.map((f) => f.name).join('、'), kcal: foods.reduce((s, f) => s + f.kcal, 0),
+      protein: foods.reduce((s, f) => s + (f.protein || 0), 0),
+      items: foods.map((f) => ({ name: f.name, kcal: f.kcal, qty: 1 })),
+      groups: [...new Set(foods.map((f) => f.group))] };
+  };
+  const rope = EXERCISES.find((e) => e.key === 'jump_rope') || EXERCISES[0];
+  const ropeLog = (id, time, reps) => ({ id, time, exerciseId: rope.id, reps, quality: 88, stars: 4, kcal: Math.round(reps * rope.kcalPerRep * 10) / 10 });
+  const act = (id, time, activity, minutes) => ({ id, time, activity, minutes, kcal: activityKcal(activity, minutes, p.weightKg), manual: true });
+
+  const breakfasts = [['蛋餅', '豆漿'], ['吐司', '荷包蛋', '牛奶'], ['饅頭', '豆漿'], ['御飯糰', '牛奶']];
+  const lunches = [['雞腿便當'], ['滷肉飯', '燙青菜', '滷蛋'], ['水餃', '燙青菜'], ['排骨便當']];
+  const dinners = [['白飯', '煎魚', '炒高麗菜'], ['白飯', '雞腿', '花椰菜'], ['陽春麵', '豆腐', '燙青菜'], ['糙米飯', '滷排骨', '番茄']];
+  const passDays = new Set([13, 10, 7, 5, 2]);   // 這幾天有好好運動 → 達標
+  const weights = [];
+  const rewards = { points: 0, awarded: {} };
   for (let i = 14; i >= 1; i--) {
     const d = new Date(); d.setDate(d.getDate() - i);
     const date = todayKey(d);
-    kg = Math.round((kg - 0.06 + (Math.random() - 0.5) * 0.2) * 10) / 10;
     const day = { date, meals: [], workouts: [] };
-    if (i % 2 === 0 || Math.random() < 0.4) { day.weightKg = kg; addWeight(kg, date); }
-    day.meals.push(meal('07:20', [pickFood('全穀'), FOODS.find((f) => f.name === '牛奶')]));
-    day.meals.push(meal('12:10', [pickFood('全穀'), pickFood('豆魚蛋肉'), pickFood('蔬菜')]));
-    day.meals.push(meal('18:30', [pickFood('全穀'), pickFood('豆魚蛋肉'), pickFood('蔬菜'), ...(Math.random() < 0.6 ? [pickFood('水果')] : [])]));
-    if (Math.random() < 0.35) day.meals.push(meal('16:00', [pickFood('點心')]));
-    const n = Math.random() < 0.15 ? 0 : 1 + Math.floor(Math.random() * 2.5);
-    for (let k = 0; k < n; k++) {
-      const ex = EXERCISES[Math.floor(Math.random() * EXERCISES.length)];
-      const reps = Math.round(ex.goal * (0.6 + Math.random() * 0.8));
-      day.workouts.push({ id: date + k, time: `17:${10 + k * 15}`, exerciseId: ex.id, reps,
-        quality: 80 + Math.floor(Math.random() * 18), stars: 3 + Math.floor(Math.random() * 3), kcal: Math.round(reps * ex.kcalPerRep * 10) / 10 });
+    day.meals.push(meal(date, '07:20', breakfasts[i % 4]));
+    day.meals.push(meal(date, '12:10', lunches[i % 4]));
+    day.meals.push(meal(date, '16:00', i % 3 === 0 ? ['半糖珍奶'] : ['香蕉', '牛奶']));
+    day.meals.push(meal(date, '18:30', dinners[i % 4]));
+    if (passDays.has(i)) {
+      day.workouts.push(i % 2 ? act(`${date}-w1`, '16:30', 'basketball', 30) : ropeLog(`${date}-w1`, '17:00', 400));
+      day.workouts.push(act(`${date}-w2`, '19:30', 'walk', 20));
+    } else if (i % 4 === 1) {
+      day.workouts.push(ropeLog(`${date}-w1`, '17:00', 100));
     }
+    if (i % 2 === 0) { day.weightKg = Math.round((37.4 + (14 - i) * 0.04) * 10) / 10; weights.push({ date, kg: day.weightKg }); }
     setDay(day);
-    if (scoreDay(day, p).passed && !rewards.awarded[date]) { rewards.awarded[date] = true; rewards.points += 1; }
+    if (scoreDay(day, p).passed) { rewards.awarded[date] = true; rewards.points += 1; }   // 依達標天數給點
   }
+  // 今天：早餐、午餐、跳繩 300 下（今天的點數保留給使用者自己領）
+  const today = todayKey();
+  weights.push({ date: today, kg: p.weightKg });
+  setItem('weights', weights);
+  setDay({ date: today, weightKg: p.weightKg,
+    meals: [meal(today, '07:15', ['蛋餅', '豆漿']), meal(today, '12:10', ['雞腿便當'])],
+    workouts: [ropeLog(`${today}-w1`, '10:20', 300)] });
   setRewards(rewards);
+  const t0 = Date.now() - 60 * 60 * 1000;
+  setChat([
+    { role: 'user', content: '午餐吃了雞腿便當', time: t0 },
+    { role: 'assistant', content: '收到！已經幫你記下午餐「雞腿便當」，大約 800 大卡 🍱。有雞腿、有飯也有青菜，很棒！便當的炸物和滷汁比較油，晚餐可以多吃一點青菜，飯後喝白開水就好，不用喝含糖飲料喔。', time: t0 + 20000 },
+    { role: 'user', content: '我想長高', time: t0 + 600000 },
+    { role: 'assistant', content: '想長高有三個好方法 🌱\n1. 睡飽：每天晚上 9 點半前上床，睡 9–10 小時，身體在睡覺時長最快。\n2. 吃夠蛋白質和鈣：每餐有蛋、豆腐、魚或肉，每天喝 1.5–2 杯牛奶。\n3. 多跳多跑：跳繩、打籃球、跑步都很好，每天動 60 分鐘。\n今天你已經跳繩 300 下了，放學再去打一場球吧 🏀', time: t0 + 620000 },
+  ]);
 }
 
 // ---------- 關於 ----------
@@ -147,7 +174,8 @@ function aboutCard() {
 function dangerCard() {
   return h('div', { class: 'card row between' },
     h('div', {}, h('div', { class: 'bold' }, '清除個人資料'), h('div', { class: 'muted small' }, '刪除身體、飲食、運動與點數紀錄。')),
-    h('button', { class: 'btn danger', onclick: () => {
+    h('button', { class: 'btn danger', onclick: async () => {
+      if (isMinor(getProfile()) && !(await askAdmin('清除未成年使用者的資料前，請家長或老師輸入管理密碼確認。'))) return;
       if (!confirm('確定要清除所有個人紀錄嗎？此動作無法復原。\n（AI 連線設定與 API key 不會被刪除）')) return;
       clearAll(); applyFont(1); toast('已清除'); location.hash = '#body';
     } }, '清除'),

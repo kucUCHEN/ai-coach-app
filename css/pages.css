@@ -247,3 +247,13 @@ label.btn { margin: 0; font-size: inherit; color: #fff; }
 
 .usage { margin: 10px 0 0; }
 .usage .progress.thin { margin: 6px 0 0; }
+
+/* ===== 第一輪測試後修改（body/score/settings） ===== */
+.segment button.on { background: var(--accent); color: #fff; box-shadow: none; font-weight: 700; }
+.chip-wrap { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip-wrap .chip.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.cond-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.cond-tag { font-size: calc(13px * var(--k)); background: var(--surface); border-radius: 8px; padding: 2px 8px; }
+.cond-note { margin: 10px 0 0; padding: 8px 10px; background: var(--warn-soft); border-radius: var(--radius-sm); }
+.status-lines { margin-top: 10px; }
+.status-lines p { margin: 4px 0; }

@@ -157,3 +157,16 @@ label { display: block; font-size: calc(15px * var(--k)); font-weight: 600; colo
 .call-btn.accept { background: var(--accent); }
 @keyframes ring { 0%,100% { box-shadow: 0 0 0 0 rgba(31,157,106,.5); } 50% { box-shadow: 0 0 0 18px rgba(31,157,106,0); } }
 @media (prefers-reduced-motion: reduce) { .call-avatar { animation: none; } }
+
+/* 通話中 */
+.call-avatar.still { animation: none; }
+.call-timer { font-variant-numeric: tabular-nums; font-size: calc(18px * var(--k)); margin-top: 4px; }
+.call-message { margin: 28px 24px 0; max-width: 420px; text-align: center; line-height: 1.6; font-size: calc(18px * var(--k)); background: rgba(255,255,255,.1); padding: 16px; border-radius: 16px; }
+.call-end { margin-top: 48px; display: flex; align-items: center; gap: 8px; border: 0; border-radius: 999px; padding: 14px 28px; background: #e5484d; color: #fff; font: inherit; font-weight: 700; font-size: calc(17px * var(--k)); cursor: pointer; }
+.call-end svg.icon { width: 22px; height: 22px; transform: rotate(135deg); }
+/* toast 復原按鈕 */
+.toast.has-action { display: flex; align-items: center; gap: 12px; }
+.toast-action { border: 0; background: none; color: #7ee2b4; font: inherit; font-weight: 700; cursor: pointer; padding: 4px 6px; }
+/* 家長確認 */
+.modal-overlay { position: fixed; inset: 0; z-index: 210; background: rgba(0,0,0,.45); display: grid; place-items: center; padding: 16px; }
+.modal-overlay .modal { width: min(360px, 100%); margin: 0; }

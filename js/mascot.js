@@ -1,23 +1,27 @@
 // 教練角色「小健」：戴綠色運動頭帶、掛哨子。表情會跟著今天的狀態改變。
-// mood: 'great' | 'good' | 'ok' | 'low' | 'cheer'
+// mood: 'great' | 'good' | 'ok' | 'low'（擔心）| 'cheer' | 'think'（思考中，給聊天打字時用）
 const MOUTH = {
   great: '<path d="M38 60 Q50 74 62 60 Z" fill="#7a3b2e"/><path d="M42 62 Q50 67 58 62" fill="#f28b82"/>',
   cheer: '<path d="M38 59 Q50 72 62 59 Z" fill="#7a3b2e"/>',
   good:  '<path d="M39 61 Q50 69 61 61" fill="none" stroke="#7a3b2e" stroke-width="3.2" stroke-linecap="round"/>',
   ok:    '<path d="M41 64 H59" fill="none" stroke="#7a3b2e" stroke-width="3.2" stroke-linecap="round"/>',
-  low:   '<path d="M40 67 Q50 59 60 67" fill="none" stroke="#7a3b2e" stroke-width="3.2" stroke-linecap="round"/>',
+  low:   '<path d="M42 66 Q50 61 58 66" fill="none" stroke="#7a3b2e" stroke-width="3" stroke-linecap="round"/>',
+  think: '<path d="M44 64 Q50 62 57 63" fill="none" stroke="#7a3b2e" stroke-width="3" stroke-linecap="round"/>',
 };
 const EYES = {
   great: '<path d="M33 47 Q38 41 43 47M57 47 Q62 41 67 47" fill="none" stroke="#2b2b2b" stroke-width="3.2" stroke-linecap="round"/>',
   cheer: '<circle cx="38" cy="46" r="4" fill="#2b2b2b"/><path d="M57 47 Q62 41 67 47" fill="none" stroke="#2b2b2b" stroke-width="3.2" stroke-linecap="round"/>',
   good:  '<circle cx="38" cy="46" r="4" fill="#2b2b2b"/><circle cx="62" cy="46" r="4" fill="#2b2b2b"/><circle cx="39.3" cy="44.6" r="1.2" fill="#fff"/><circle cx="63.3" cy="44.6" r="1.2" fill="#fff"/>',
   ok:    '<circle cx="38" cy="47" r="3.6" fill="#2b2b2b"/><circle cx="62" cy="47" r="3.6" fill="#2b2b2b"/>',
-  low:   '<circle cx="38" cy="48" r="3.6" fill="#2b2b2b"/><circle cx="62" cy="48" r="3.6" fill="#2b2b2b"/><path d="M31 43 L43 39M69 43 L57 39" stroke="#2b2b2b" stroke-width="2.6" stroke-linecap="round"/>',
+  // 擔心：眉毛內側往上、外側往下（不是生氣的倒八字）
+  low:   '<circle cx="38" cy="49" r="3.6" fill="#2b2b2b"/><circle cx="62" cy="49" r="3.6" fill="#2b2b2b"/><path d="M31 41 Q37 41 43 37M69 41 Q63 41 57 37" fill="none" stroke="#2b2b2b" stroke-width="2.4" stroke-linecap="round"/>',
+  think: '<circle cx="40" cy="44" r="3.6" fill="#2b2b2b"/><circle cx="64" cy="44" r="3.6" fill="#2b2b2b"/><path d="M33 38 Q38 35 43 38" fill="none" stroke="#2b2b2b" stroke-width="2.4" stroke-linecap="round"/>',
 };
 const EXTRA = {
   great: '<text x="78" y="26" font-size="16">✨</text>',
   low:   '<path d="M70 52 q3 6 0 9 q-3 -3 0 -9z" fill="#7cc4f2"/>',
   cheer: '<text x="76" y="28" font-size="16">💪</text>',
+  think: '<circle cx="80" cy="30" r="3" fill="#c9ced3"/><circle cx="87" cy="22" r="4" fill="#c9ced3"/><text x="82" y="16" font-size="12">💭</text>',
 };
 
 export function mascotSVG(mood = 'good') {

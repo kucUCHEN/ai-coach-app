@@ -52,7 +52,18 @@ export function addWeight(kg, date = todayKey()) {
 
 // ---- 點數與獎勵 ----
 // { points, reward:{name, cost}, awarded:{ 'YYYY-MM-DD': true } }
-export const getRewards = () => read('rewards', { points: 0, reward: { name: '籃球', cost: 5 }, awarded: {} });
+// 沒自訂過（reward.custom 不是 true）時，獎勵依年齡給預設值
+export function defaultReward(p = getProfile()) {
+  const a = Number(p?.age) || 0;
+  const name = a && a < 18 ? '一顆新籃球' : a >= 65 ? '一次按摩' : '一雙新運動鞋';
+  return { name, cost: 5, custom: false };
+}
+export function getRewards() {
+  const r = read('rewards', { points: 0, awarded: {} });
+  r.awarded ||= {}; r.points = Number(r.points) || 0;
+  if (!r.reward?.custom) r.reward = { ...defaultReward(), cost: Number(r.reward?.cost) || 5 };
+  return r;
+}
 export const setRewards = (r) => write('rewards', r);
 
 // ---- AI 教練對話 [{role, content, time}] ----
@@ -60,7 +71,22 @@ export const getChat = () => read('chat', []);
 export const setChat = (c) => write('chat', c.slice(-60));
 
 // ---- 設定 ----
+// 提醒時間：未成年沒有「07:00 量體重」，改成吃早餐／午餐／運動／早點睡（時間相同，顯示文字依年齡）
 export const getSettings = () => read('settings', { remindTimes: ['07:00', '12:00', '17:30', '21:00'], fontScale: 1 });
+
+// ---- 管理密碼（與 AI 連線頁同一組：teacher.pass = {salt, hash}，hash = SHA-256(salt + ':' + pw)；沒設過時為 0000）----
+export async function verifyAdmin(pw) {
+  pw = String(pw ?? '');
+  const pass = read('teacher.pass', null);
+  if (!pass?.salt || !pass?.hash) return pw === '0000';
+  try {
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(pass.salt + ':' + pw));
+    const hex = [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
+    let diff = hex.length ^ pass.hash.length;
+    for (let i = 0; i < Math.min(hex.length, pass.hash.length); i++) diff |= hex.charCodeAt(i) ^ pass.hash.charCodeAt(i);
+    return diff === 0;
+  } catch { return false; }
+}
 export const setSettings = (s) => write('settings', s);
 
 // ---- 通用（給 AI 層、老師設定用）----

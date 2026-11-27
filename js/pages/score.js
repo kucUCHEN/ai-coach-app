@@ -1,7 +1,7 @@
 // 「健康紀錄」：今日評分、教練提醒、達標點數、本週分數、本月回顧。
-import { h, toast } from '../ui.js';
+import { h, toast, askAdmin } from '../ui.js';
 import { getProfile, getDay, getRewards, setRewards, getWeights, listDays, todayKey } from '../store.js';
-import { scoreDay, PASS_SCORE } from '../health.js';
+import { scoreDay, PASS_SCORE, isMinor, workoutMinutes } from '../health.js';
 import { needProfile } from './food.js';
 import { mascot, moodOf } from '../mascot.js';
 import { guessGroups } from '../foods.js';
@@ -23,7 +23,7 @@ export function leave() { alive = false; }
 function draw(p) {
   const day = getDay();
   const s = scoreDay(day, p);
-  root.replaceChildren(scoreCard(s, day, p), weekCard(p), badgeCard(p), rewardCard(s), monthCard(p));
+  root.replaceChildren(scoreCard(s, day, p), weekCard(p), badgeCard(p), rewardCard(s, p), monthCard(p));
 }
 
 // ---------- 今日評分（教練表情＋分數） ----------
@@ -47,11 +47,21 @@ function scoreCard(s, day, profile) {
     ),
     h('div', { class: 'grid2 mt' },
       part('🍱', '飲食', s.diet, s.diet == null ? '尚未記錄' : `${s.eaten} / ${s.target} 大卡`),
-      part('🏃', '運動', s.exercise, `${day.workouts.length} 次・${Math.round(s.burned)} 大卡`),
+      part('🏃', '運動', s.exercise, day.workouts.length ? `約 ${s.minutes} 分鐘・${Math.round(s.burned)} 大卡` : '尚未記錄'),
     ),
+    statusLine(s, day),
     tip ? h('div', { class: 'coach-line' }, h('span', { class: 'coach-say' }, '小健：'), h('p', {}, String(tip))) : '',
     h('p', { class: 'fine' }, s.passed ? '🎉 今天已達標，可以領取點數。' : `💡 今日評分達 ${PASS_SCORE} 分就算達標。`),
   );
+}
+
+// 客觀狀態（和分數同一套計算，不會跟評語矛盾）
+function statusLine(s, day) {
+  const lines = [];
+  if (s.over) lines.push('🍽️ 今天吃得比建議多了一點');
+  else if (s.under && day.date === todayKey()) lines.push('⏰ 還有餐點沒記錄，分數會再更新');
+  if (!day.workouts.length) lines.push('🏃 今天還沒有運動紀錄');
+  return lines.length ? h('div', { class: 'status-lines' }, lines.map((t) => h('p', { class: 'small' }, t))) : '';
 }
 
 // ---------- 本週徽章 ----------
@@ -108,7 +118,7 @@ function monthCard(p) {
   const weights = getWeights().filter((w) => w.date.startsWith(month));
   const days = listDays().filter((d) => d.startsWith(month)).map((k) => getDay(k));
   const recorded = days.filter((d) => d.meals.length || d.workouts.length || d.weightKg);
-  const reps = days.reduce((s, d) => s + d.workouts.reduce((a, w) => a + (Number(w.reps) || 0), 0), 0);
+  const mins = days.reduce((s, d) => s + d.workouts.reduce((a, w) => a + workoutMinutes(w), 0), 0);
   const best = recorded.reduce((m, d) => Math.max(m, scoreDay(d, p).total), 0);
   const change = weights.length >= 2 ? Math.round((weights[weights.length - 1].kg - weights[0].kg) * 10) / 10 : null;
 
@@ -118,7 +128,7 @@ function monthCard(p) {
       change == null ? '' : h('span', { class: 'small' }, change === 0 ? '持平' : `${change > 0 ? '+' : ''}${change} 公斤`)),
     weights.length >= 2 ? weightChart(weights) : h('p', { class: 'muted small' }, '本月記錄兩次以上體重後，會顯示變化圖。'),
     h('div', { class: 'stat-row' },
-      mini(reps.toLocaleString(), '運動次數'),
+      mini(mins.toLocaleString(), '運動分鐘'),
       mini(recorded.length, '記錄天數'),
       mini(best || '—', '最高分'),
     ),
@@ -129,7 +139,9 @@ function mini(num, label) {
 }
 
 // ---------- 達標點數 ----------
-function rewardCard(s) {
+function rewardCard(s, p) {
+  const minor = isMinor(p);
+  const guard = async (why) => !minor || askAdmin(why);
   const rw = getRewards();
   rw.awarded ||= {};
   const today = todayKey();
@@ -150,10 +162,13 @@ function rewardCard(s) {
   const costIn = h('input', { type: 'number', min: '1', max: '100', value: rw.reward.cost, 'aria-label': '所需點數' });
   const editor = h('div', { class: 'reward-edit', hidden: true },
     h('div', { class: 'grid2' }, h('div', {}, h('label', {}, '獎勵'), nameIn), h('div', {}, h('label', {}, '所需點數'), costIn)),
-    h('button', { class: 'btn secondary block mt', onclick: () => {
-      const r = getRewards(); const cost = Math.round(Number(costIn.value));
+    minor ? h('p', { class: 'fine' }, '🔒 未成年改獎勵需要家長輸入管理密碼。') : '',
+    h('button', { class: 'btn secondary block mt', onclick: async () => {
+      const cost = Math.round(Number(costIn.value));
       if (!nameIn.value.trim() || !(cost >= 1 && cost <= 100)) return toast('請輸入獎勵與點數');
-      r.reward = { name: nameIn.value.trim(), cost }; setRewards(r); toast('已更新'); draw(getProfile());
+      if (!(await guard('改獎勵前，請家長輸入管理密碼確認。'))) return;
+      const r = getRewards();
+      r.reward = { name: nameIn.value.trim(), cost, custom: true }; setRewards(r); toast('已更新'); draw(getProfile());
     } }, '儲存'));
 
   return h('div', { class: 'card' },
@@ -161,10 +176,12 @@ function rewardCard(s) {
     h('div', { class: 'row between small' }, h('span', {}, `目標：${rw.reward.name}`), h('span', { class: 'muted' }, left ? `還差 ${left} 點` : '已達成')),
     h('div', { class: 'progress thin' }, h('div', { class: 'progress-bar', style: { width: pct + '%' } })),
     claim,
-    left === 0 ? h('button', { class: 'btn secondary block mt', onclick: () => {
+    left === 0 ? h('button', { class: 'btn secondary block mt', onclick: async () => {
+      const r0 = getRewards();
+      if (r0.points < r0.reward.cost) return;
+      if (minor) { if (!(await askAdmin(`兌換「${r0.reward.name}」（${r0.reward.cost} 點），請家長輸入管理密碼確認。`))) return; }
+      else if (!confirm(`使用 ${r0.reward.cost} 點兌換「${r0.reward.name}」？`)) return;
       const r = getRewards();
-      if (r.points < r.reward.cost) return;
-      if (!confirm(`使用 ${r.reward.cost} 點兌換「${r.reward.name}」？`)) return;
       r.points -= r.reward.cost; setRewards(r);
       toast(`🎉 已兌換：${r.reward.name}`); draw(getProfile());
     } }, `兌換 ${rw.reward.name}`) : '',

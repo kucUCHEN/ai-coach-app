@@ -1,0 +1,28 @@
+/* 運動頁 */
+.tabbar a[data-route="exercise"] { position: relative; }
+.tabbar a[data-route="exercise"].live::after {
+  content: ''; position: absolute; top: 6px; right: calc(50% - 18px);
+  width: 9px; height: 9px; border-radius: 50%; background: #e5484d;
+  box-shadow: 0 0 0 0 rgba(229, 72, 77, .6); animation: ex-pulse 1.4s infinite;
+}
+@keyframes ex-pulse { 70% { box-shadow: 0 0 0 7px rgba(229, 72, 77, 0); } 100% { box-shadow: 0 0 0 0 rgba(229, 72, 77, 0); } }
+@media (prefers-reduced-motion: reduce) { .tabbar a[data-route="exercise"].live::after { animation: none; } }
+
+.form-tip { margin-top: 10px; padding: 8px 12px; border-radius: 10px; background: #fff4e5; color: #8a4b00;
+  font-size: calc(15px * var(--k)); font-weight: 600; }
+.goal-done { margin-top: 10px; padding: 8px 12px; border-radius: 10px; background: #e8f7ee; color: #17663a;
+  font-size: calc(15px * var(--k)); font-weight: 600; text-align: center; }
+.form-tip[hidden], .goal-done[hidden] { display: none; }
+
+.seg { display: flex; gap: 6px; margin: 12px 0 10px; }
+.seg-btn { flex: 1; min-height: 40px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface);
+  color: inherit; font-size: calc(15px * var(--k)); cursor: pointer; }
+.seg-btn.on { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+.manual-body [hidden] { display: none; }
+.form-err { color: #c0352b; margin: 8px 0 0; }
+.form-err[hidden] { display: none; }
+
+.today-sum { margin: 0 0 6px; font-weight: 600; }
+.del-btn { flex: none; width: 36px; height: 36px; border: 0; border-radius: 50%; background: transparent;
+  color: var(--muted, #888); font-size: calc(20px * var(--k)); cursor: pointer; }
+.del-btn:hover, .del-btn:focus-visible { background: var(--surface); color: #c0352b; }

@@ -97,3 +97,17 @@
 
 .teacher-warn { margin: 10px 0 0; padding: 10px 12px; border-radius: 10px; background: var(--warn-soft); color: var(--warn); font-size: calc(14px * var(--k)); }
 .teacher-warn[hidden] { display: none; }
+
+/* ---- 復原按鈕、語音狀態 ---- */
+.undo-btn {
+  margin: 6px 0 2px; min-height: 40px; padding: 0 14px; border-radius: 999px;
+  border: 1px solid var(--line); background: var(--bg); color: var(--text);
+  font-size: calc(15px * var(--k)); cursor: pointer;
+}
+.undo-btn:active { background: var(--line); }
+.mic-status {
+  margin: 0; padding: 8px 12px; border-radius: 10px; text-align: center;
+  background: var(--accent-soft); color: var(--accent-strong); font-size: calc(16px * var(--k));
+}
+.mic-status[hidden] { display: none; }
+.coach-face-slot { display: contents; }

@@ -1,6 +1,6 @@
 // 離線快取：第一次打開時把所有檔案存進手機，之後沒網路也能用。
 // 有網路時優先拿最新版（所以改程式後不用手動清快取），沒網路時用存好的版本。
-const CACHE = 'aicoach-v7';
+const CACHE = 'aicoach-v8';
 const FILES = [
   './', './index.html', './manifest.webmanifest',
   './css/app.css', './css/pages.css', './css/ai.css', './css/food.css', './css/exercise.css',
